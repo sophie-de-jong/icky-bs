@@ -1,0 +1,9 @@
+; True is the combinator that takes two functions and returns the first...
+TRUE := K
+; False is the combinator that takes two functions and returns the second...
+FALSE := K I
+
+NOT := C(C I FALSE) TRUE
+NOT TRUE
+NOT FALSE
+NOT (NOT TRUE)
