@@ -1,0 +1,17 @@
+T := C I
+TRUE := K
+FALSE := K I
+
+; We want pair to have the behaviour PAIR x y TRUE -> TRUE x y -> x
+; Therefore, PAIR x y z should become z x y
+PAIR := B C T
+
+; We want FIRST p -> p TRUE so FIRST should become T TRUE
+FIRST := T TRUE
+
+; We want SECOND p -> p FALSE so SECOND should become T FALSE
+SECOND := T FALSE
+
+FIRST (PAIR x y)
+SECOND (PAIR x y)
+SECOND (PAIR TRUE FALSE)

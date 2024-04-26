@@ -43,7 +43,7 @@ pub fn parse(mut expr_string: String) -> Result<Vec<Term>> {
 
 fn is_valid_combinator(combinator: &str) -> bool {
     for ch in combinator.chars() {
-        if !matches!(ch, 'A'..='Z' | '_') {
+        if !matches!(ch, 'A'..='Z' | '0'..='9' | '_') {
             return false
         }
     }

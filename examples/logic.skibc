@@ -1,0 +1,25 @@
+; TRUE is the combinator that takes two functions and returns the first...
+TRUE := K
+; FALSE is the combinator that takes two functions and returns the second...
+FALSE := K I
+
+; NOT operator
+NOT := C (C I FALSE) TRUE
+NOT TRUE
+NOT FALSE
+NOT (NOT TRUE)
+
+; AND operator
+AND := C C FALSE
+AND TRUE TRUE
+AND TRUE FALSE
+AND FALSE TRUE
+AND FALSE FALSE
+
+; Simulate OR using NOT and AND
+; T OR F -> T
+NOT (AND (NOT TRUE) (NOT FALSE))
+; F or F -> F
+NOT (AND (NOT FALSE) (NOT FALSE))
+; T or T -> T
+NOT (AND (NOT TRUE) (NOT TRUE))

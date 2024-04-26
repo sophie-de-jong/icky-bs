@@ -1,0 +1,9 @@
+T := C I
+LIST := B C T
+VALUE := T K
+NEXT := T (K I)
+
+; List below is [x, y, z]
+VALUE (LIST x (LIST y (LIST z end)))
+VALUE (NEXT (LIST x (LIST y (LIST z end))))
+VALUE (NEXT (NEXT (LIST x (LIST y (LIST z end)))))

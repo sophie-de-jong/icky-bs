@@ -1,8 +1,0 @@
-T := C I
-TRUE := K
-FALSE := K I
-PAIR := B C T
-FIRST := T TRUE
-SECOND := T FALSE
-FIRST (PAIR x y)
-SECOND (PAIR x y)
