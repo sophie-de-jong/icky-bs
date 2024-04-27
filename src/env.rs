@@ -3,7 +3,7 @@ use anyhow::{Result, anyhow};
 use std::collections::HashMap;
 use std::fmt;
 
-const MAX_EXPR_SIZE: usize = 775;
+const MAX_EXPR_SIZE: usize = 256;
 
 #[derive(Debug, Default)]
 pub struct Env {
@@ -89,6 +89,7 @@ impl Env {
             Combinator::S if self.expect_args(3) => self.s_combinator()?,
             Combinator::B if self.expect_args(3) => self.b_combinator()?,
             Combinator::C if self.expect_args(3) => self.c_combinator()?,
+            Combinator::Y if self.expect_args(1) => self.y_combinator()?,
             Combinator::Other(combinator) => {
                 if let Some(expr) = self.bindings.get(&combinator) {
                     self.expr.append(&mut expr.clone());
@@ -105,28 +106,6 @@ impl Env {
         }
         self.reduce(collapse_parens)
     }
-
-    // fn reduce_parens(&mut self) {
-    //     if let Some(Term::LeftParen) = self.expr.last() {
-    //         // Find the index of the matching right parenthesis.
-    //         let mut paren_count = 1;
-    //         let mut index = self.expr.len() - 2;
-    //         while let Some(term) = self.expr.get(index) {
-    //             match term {
-    //                 Term::LeftParen => paren_count += 1,
-    //                 Term::RightParen => paren_count -= 1,
-    //                 _ => (),
-    //             }
-    //             if paren_count == 0 {
-    //                 break
-    //             }
-    //             index -= 1;
-    //         }
-
-    //         self.expr.pop(); // Remove left parenthesis.
-    //         self.expr.remove(index); // Remove right parenthesis.
-    //     }
-    // }
 
     // K x y -> x
     fn k_combinator(&mut self) -> Result<()> {
@@ -174,6 +153,18 @@ impl Env {
 
         self.expr.append(&mut g);
         self.expr.append(&mut x);
+        self.expr.append(&mut f);
+        Ok(())
+    }
+
+    // Y f -> f (Y f)
+    fn y_combinator(&mut self) -> Result<()> {
+        let mut f = self.next_term()?;
+
+        self.expr.push(Term::RightParen);
+        self.expr.append(&mut f.clone());
+        self.expr.push(Term::Combinator(Combinator::Y));
+        self.expr.push(Term::LeftParen);
         self.expr.append(&mut f);
         Ok(())
     }
@@ -242,6 +233,7 @@ impl fmt::Display for Env {
                 Term::Combinator(Combinator::S) => "S",
                 Term::Combinator(Combinator::B) => "B",
                 Term::Combinator(Combinator::C) => "C",
+                Term::Combinator(Combinator::Y) => "Y",
                 Term::Combinator(Combinator::Other(combinator)) => combinator,
                 Term::Var(ident) => ident,
                 Term::LeftParen => "(",

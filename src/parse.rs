@@ -13,6 +13,7 @@ pub fn parse(mut expr_string: String) -> Result<Vec<Term>> {
             "S" => Term::Combinator(Combinator::S),
             "B" => Term::Combinator(Combinator::B),
             "C" => Term::Combinator(Combinator::C),
+            "Y" => Term::Combinator(Combinator::Y),
             "(" => {
                 paren_count += 1;
                 Term::LeftParen

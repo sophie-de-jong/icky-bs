@@ -5,6 +5,7 @@ pub enum Combinator {
     S,
     B,
     C,
+    Y,
     Other(String)
 }
 
