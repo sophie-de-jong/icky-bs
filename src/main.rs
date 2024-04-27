@@ -1,6 +1,6 @@
 mod env;
 mod term;
-mod parse;
+mod lexer;
 mod repl;
 mod interpreter;
 

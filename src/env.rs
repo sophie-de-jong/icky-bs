@@ -1,4 +1,5 @@
 use crate::term::{Combinator, Term};
+use crate::lexer::{Lexer, Token};
 use anyhow::{Result, anyhow};
 use std::collections::HashMap;
 use std::fmt;
@@ -18,6 +19,55 @@ impl Env {
 
     pub fn bind(&mut self, variable: String, expr: Vec<Term>) {
         self.bindings.insert(variable, expr);
+    }
+
+    pub fn parse(&mut self, expr_string: &str) -> Result<Vec<Term>> {
+        let mut expr = Vec::new();
+        let mut lexer = Lexer::new(expr_string);
+        let mut paren_count: i8 = 0;
+    
+        while let Some(token) = lexer.next_token() {
+            let term = match token {
+                Token::LeftParen => {
+                    paren_count += 1;
+                    Term::LeftParen
+                },
+                Token::RightParen => {
+                    paren_count -= 1;
+                    Term::RightParen
+                },
+                Token::Ident(combinator) if Lexer::is_valid_combinator(&combinator) => {
+                    let combinator = match combinator.as_str() {
+                        "I" => Combinator::I,
+                        "K" => Combinator::K,
+                        "S" => Combinator::S,
+                        "B" => Combinator::B,
+                        "C" => Combinator::C,
+                        "Y" => Combinator::Y,
+                        k => if self.bindings.contains_key(k) {
+                            Combinator::Other(combinator)
+                        } else {
+                            return Err(anyhow!("no combinator `{}` exists", k))
+                        },
+                    };
+                    Term::Combinator(combinator)
+                },
+                Token::Ident(variable) if Lexer::is_valid_variable(&variable) => Term::Var(variable),
+                Token::Ident(bad_ident) => return Err(anyhow!("bad identifier `{}`", bad_ident)),
+            };
+            expr.push(term);
+
+            if paren_count < 0 {
+                return Err(anyhow!("unexpected right parenthesis [{}]", lexer.get_cursor()))
+            }
+        }
+    
+        if paren_count > 0 {
+            Err(anyhow!("missing right parenthesis [{}]", lexer.get_cursor()))
+        } else {
+            expr.reverse();
+            Ok(expr)
+        }
     }
 
     pub fn update(&mut self, expr: Vec<Term>) -> Result<()> {
@@ -85,11 +135,11 @@ impl Env {
     fn reduce_combinator(&mut self, combinator: Combinator, collapse_parens: bool) -> Result<()> {
         match combinator {
             Combinator::I if self.expect_args(1) => return self.reduce(collapse_parens),
-            Combinator::K if self.expect_args(2) => self.k_combinator()?,
-            Combinator::S if self.expect_args(3) => self.s_combinator()?,
-            Combinator::B if self.expect_args(3) => self.b_combinator()?,
-            Combinator::C if self.expect_args(3) => self.c_combinator()?,
-            Combinator::Y if self.expect_args(1) => self.y_combinator()?,
+            Combinator::K if self.expect_args(2) => self.k_combinator(),
+            Combinator::S if self.expect_args(3) => self.s_combinator(),
+            Combinator::B if self.expect_args(3) => self.b_combinator(),
+            Combinator::C if self.expect_args(3) => self.c_combinator(),
+            Combinator::Y if self.expect_args(1) => self.y_combinator(),
             Combinator::Other(combinator) => {
                 if let Some(expr) = self.bindings.get(&combinator) {
                     self.expr.append(&mut expr.clone());
@@ -99,7 +149,6 @@ impl Env {
                 }
             },
             _ => {
-                // self.reduce(false)?;
                 self.expr.push(Term::Combinator(combinator));
                 return Ok(())
             }
@@ -108,19 +157,18 @@ impl Env {
     }
 
     // K x y -> x
-    fn k_combinator(&mut self) -> Result<()> {
-        let mut x = self.next_term()?;
-        let _y = self.next_term()?; // Skip.
+    fn k_combinator(&mut self) {
+        let mut x = self.next_term();
+        let _y = self.next_term(); // Skip.
 
         self.expr.append(&mut x);
-        Ok(())
     }
 
     // S f g x -> f x ( g x )
-    fn s_combinator(&mut self) -> Result<()> {
-        let mut f = self.next_term()?;
-        let mut g = self.next_term()?;
-        let mut x = self.next_term()?;
+    fn s_combinator(&mut self) {
+        let mut f = self.next_term();
+        let mut g = self.next_term();
+        let mut x = self.next_term();
 
         self.expr.push(Term::RightParen);
         self.expr.append(&mut x.clone());
@@ -128,45 +176,41 @@ impl Env {
         self.expr.push(Term::LeftParen);
         self.expr.append(&mut x);
         self.expr.append(&mut f);
-        Ok(())
     }
 
     // B f g x -> f ( g x )
-    fn b_combinator(&mut self) -> Result<()> {
-        let mut f = self.next_term()?;
-        let mut g = self.next_term()?;
-        let mut x = self.next_term()?;
+    fn b_combinator(&mut self) {
+        let mut f = self.next_term();
+        let mut g = self.next_term();
+        let mut x = self.next_term();
 
         self.expr.push(Term::RightParen);
         self.expr.append(&mut x);
         self.expr.append(&mut g);
         self.expr.push(Term::LeftParen);
         self.expr.append(&mut f);
-        Ok(())
     }
 
     // C f g x -> f x g
-    fn c_combinator(&mut self) -> Result<()> {
-        let mut f = self.next_term()?;
-        let mut g = self.next_term()?;
-        let mut x = self.next_term()?;
+    fn c_combinator(&mut self) {
+        let mut f = self.next_term();
+        let mut g = self.next_term();
+        let mut x = self.next_term();
 
         self.expr.append(&mut g);
         self.expr.append(&mut x);
         self.expr.append(&mut f);
-        Ok(())
     }
 
     // Y f -> f (Y f)
-    fn y_combinator(&mut self) -> Result<()> {
-        let mut f = self.next_term()?;
+    fn y_combinator(&mut self) {
+        let mut f = self.next_term();
 
         self.expr.push(Term::RightParen);
         self.expr.append(&mut f.clone());
         self.expr.push(Term::Combinator(Combinator::Y));
         self.expr.push(Term::LeftParen);
         self.expr.append(&mut f);
-        Ok(())
     }
 
     // Returns true if there are n different terms before a right parenthesis
@@ -199,9 +243,9 @@ impl Env {
         n == 0
     }
 
-    fn next_term(&mut self) -> Result<Vec<Term>> {
-        match self.expr.pop().ok_or(anyhow!("no term exists"))? {
-            term @ Term::Combinator(_) | term @ Term::Var(_) => Ok(vec![term]),
+    fn next_term(&mut self) -> Vec<Term> {
+        match self.expr.pop().expect("no term exists") {
+            term @ Term::Combinator(_) | term @ Term::Var(_) => vec![term],
             term @ Term::LeftParen => {
                 let mut result = vec![term];
                 let mut paren_count: u8 = 1;
@@ -217,7 +261,7 @@ impl Env {
                     }
                 }
                 result.reverse();
-                Ok(result)
+                result
             }
             Term::RightParen => unreachable!()
         }
