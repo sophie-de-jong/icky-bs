@@ -21,6 +21,7 @@ pub fn parse(mut expr_string: String) -> Result<Vec<Term>> {
                 paren_count -= 1;
                 Term::RightParen
             },
+            ";" => break,
             ident => {
                 if is_valid_combinator(ident) {
                     Term::Combinator(Combinator::Other(ident.to_string()))

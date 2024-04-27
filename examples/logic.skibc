@@ -5,21 +5,21 @@ FALSE := K I
 
 ; NOT operator
 NOT := C (C I FALSE) TRUE
-NOT TRUE
-NOT FALSE
-NOT (NOT TRUE)
+NOT TRUE         true false
+NOT FALSE        true false
+NOT (NOT TRUE)   true false
+NOT (NOT FALSE)  true false
 
 ; AND operator
 AND := C C FALSE
-AND TRUE TRUE
-AND TRUE FALSE
-AND FALSE TRUE
-AND FALSE FALSE
+AND TRUE TRUE    true false
+AND TRUE FALSE   true false
+AND FALSE TRUE   true false
+AND FALSE FALSE  true false
 
-; Simulate OR using NOT and AND
-; T OR F -> T
-NOT (AND (NOT TRUE) (NOT FALSE))
-; F or F -> F
-NOT (AND (NOT FALSE) (NOT FALSE))
-; T or T -> T
-NOT (AND (NOT TRUE) (NOT TRUE))
+; OR operator
+OR := C I TRUE
+OR TRUE FALSE    true false
+OR FALSE TRUE    true false
+OR FALSE FALSE   true false
+OR TRUE TRUE     true false

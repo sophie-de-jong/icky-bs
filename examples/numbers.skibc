@@ -2,11 +2,13 @@ TRUE := K
 FALSE := K I
 PAIR := B C (C I)
 NOT := C (C I FALSE) TRUE
+AND := C C FALSE
 
-IS_ZERO := C I TRUE
-IS_POS := B NOT IS_ZERO
 SUCC := PAIR FALSE
 PRED := C I FALSE
+IS_ZERO := C I TRUE
+IS_POS := B NOT IS_ZERO
+IS_ONE := S (B AND IS_POS) (B IS_ZERO PRED)
 
 0 := I
 1 := SUCC 0
@@ -18,5 +20,8 @@ IS_ZERO 0        true false
 IS_ZERO 1        true false
 IS_POS 3         true false
 IS_POS 0         true false
+IS_ONE 1         true false
+IS_ONE 0         true false
 IS_ZERO (PRED 1) true false
 IS_POS (SUCC 1)  true false
+; IS_ONE (PRED 2)  true false [FIX ME]

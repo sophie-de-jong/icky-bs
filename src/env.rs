@@ -3,6 +3,8 @@ use anyhow::{Result, anyhow};
 use std::collections::HashMap;
 use std::fmt;
 
+const MAX_EXPR_SIZE: usize = 775;
+
 #[derive(Debug, Default)]
 pub struct Env {
     bindings: HashMap<String, Vec<Term>>,
@@ -27,6 +29,10 @@ impl Env {
         let Some(term) = self.expr.pop() else {
             return Ok(())
         };
+
+        if self.expr.len() >= MAX_EXPR_SIZE {
+            return Err(anyhow!("max expression limit hit"));
+        }
 
         match term {
             Term::Combinator(combinator) => self.reduce_combinator(combinator, collapse_parens),
@@ -62,7 +68,7 @@ impl Env {
                 // Calculate whether brackets need to be removed.
                 if n_args == 1 || collapse_parens {
                     self.expr.remove(paren_index);
-                    self.reduce(collapse_parens)?;
+                    self.reduce(true)?;
                 } else {
                     self.expr.push(Term::LeftParen);
                 }

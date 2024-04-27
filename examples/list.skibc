@@ -1,9 +1,11 @@
 T := C I
-LIST := B C T
-VALUE := T K
-NEXT := T (K I)
+TRUE := K
+FALSE := K I
 
-; List below is [x, y, z]
-VALUE (LIST x (LIST y (LIST z end)))
-VALUE (NEXT (LIST x (LIST y (LIST z end))))
-VALUE (NEXT (NEXT (LIST x (LIST y (LIST z end)))))
+CONS := B C T
+HEAD := T TRUE
+TAIL := T FALSE
+NIL := TRUE
+IS_EMPTY := 
+
+HEAD (CONS x (CONS y (CONS z NIL)))
