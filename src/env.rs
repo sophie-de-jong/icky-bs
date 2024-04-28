@@ -1,6 +1,6 @@
 use crate::term::{Combinator, Term};
 use crate::lexer::{Lexer, Token};
-use anyhow::{Result, anyhow};
+use crate::error::{SKIError, SKIResult};
 use std::collections::HashMap;
 use std::fmt;
 
@@ -21,7 +21,7 @@ impl Env {
         self.bindings.insert(variable, expr);
     }
 
-    pub fn parse(&mut self, expr_string: &str) -> Result<Vec<Term>> {
+    pub fn parse(&mut self, expr_string: &str) -> SKIResult<Vec<Term>> {
         let mut expr = Vec::new();
         let mut lexer = Lexer::new(expr_string);
         let mut paren_count: i8 = 0;
@@ -36,6 +36,7 @@ impl Env {
                     paren_count -= 1;
                     Term::RightParen
                 },
+                Token::Ident(variable) if Lexer::is_valid_variable(&variable) => Term::Var(variable),
                 Token::Ident(combinator) if Lexer::is_valid_combinator(&combinator) => {
                     let combinator = match combinator.as_str() {
                         "I" => Combinator::I,
@@ -47,41 +48,47 @@ impl Env {
                         k => if self.bindings.contains_key(k) {
                             Combinator::Other(combinator)
                         } else {
-                            return Err(anyhow!("no combinator `{}` exists", k))
+                            let cursor = lexer.get_cursor() - combinator.len() + 1;
+                            let width = combinator.len();
+                            return Err(SKIError::new("combinator doesn't exist", cursor, width))
                         },
                     };
                     Term::Combinator(combinator)
                 },
-                Token::Ident(variable) if Lexer::is_valid_variable(&variable) => Term::Var(variable),
-                Token::Ident(bad_ident) => return Err(anyhow!("bad identifier `{}`", bad_ident)),
+                Token::Ident(ident) => {
+                    let cursor = lexer.get_cursor() - ident.len() + 1;
+                    let width = ident.len();
+                    return Err(SKIError::new("bad identifier", cursor, width))
+                },
             };
             expr.push(term);
 
             if paren_count < 0 {
-                return Err(anyhow!("unexpected right parenthesis [{}]", lexer.get_cursor()))
+                return Err(SKIError::new("unexpected right paren", lexer.get_cursor(), 1))
             }
         }
     
         if paren_count > 0 {
-            Err(anyhow!("missing right parenthesis [{}]", lexer.get_cursor()))
+            Err(SKIError::new("missing right paren", lexer.get_cursor() - 2, 1))
         } else {
             expr.reverse();
             Ok(expr)
         }
     }
 
-    pub fn update(&mut self, expr: Vec<Term>) -> Result<()> {
+    pub fn update(&mut self, expr: Vec<Term>) -> SKIResult<()> {
         self.expr = expr;
         self.reduce(true)
     }
 
-    fn reduce(&mut self, collapse_parens: bool) -> Result<()> {
+    fn reduce(&mut self, collapse_parens: bool) -> SKIResult<()> {
         let Some(term) = self.expr.pop() else {
             return Ok(())
         };
 
         if self.expr.len() >= MAX_EXPR_SIZE {
-            return Err(anyhow!("max expression limit hit"));
+            // TODO: Find a better way to test for infinite recursion.
+            return Err(SKIError::new("infinitely recursive", 0, 0));
         }
 
         match term {
@@ -132,7 +139,7 @@ impl Env {
         }
     }
 
-    fn reduce_combinator(&mut self, combinator: Combinator, collapse_parens: bool) -> Result<()> {
+    fn reduce_combinator(&mut self, combinator: Combinator, collapse_parens: bool) -> SKIResult<()> {
         match combinator {
             Combinator::I if self.expect_args(1) => return self.reduce(collapse_parens),
             Combinator::K if self.expect_args(2) => self.k_combinator(),
@@ -141,12 +148,10 @@ impl Env {
             Combinator::C if self.expect_args(3) => self.c_combinator(),
             Combinator::Y if self.expect_args(1) => self.y_combinator(),
             Combinator::Other(combinator) => {
-                if let Some(expr) = self.bindings.get(&combinator) {
-                    self.expr.append(&mut expr.clone());
-                    return self.reduce(collapse_parens)
-                } else {
-                    return Err(anyhow!("no combinator {} found", combinator))
-                }
+                // If the combinator is not built-in, it must be in the bindings map.
+                let expr = self.bindings.get(&combinator).expect("bindings should always have a mapping");
+                self.expr.append(&mut expr.clone());
+                return self.reduce(collapse_parens)
             },
             _ => {
                 self.expr.push(Term::Combinator(combinator));

@@ -4,7 +4,7 @@ TRUE := K
 FALSE := K I
 
 ; NOT operator
-NOT := C (C I FALSE) TRUE
+NOT := C (C I FALSE)) TRUE
 NOT TRUE         true false
 NOT FALSE        true false
 NOT (NOT TRUE)   true false

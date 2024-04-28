@@ -1,21 +1,32 @@
 use std::fs;
-use anyhow::Result;
-
+use crate::error::SKIResult;
 use crate::env::Env;
 
 pub const ASSIGN_DELIMETER: &str = ":=";
 
-pub fn interpret(file_path: String) -> Result<()> {
+pub fn interpret(file_path: String) {
     let mut env = Env::new();
-    for (line_count, line) in fs::read_to_string(file_path.clone())?.lines().enumerate() {
-        if interpret_line(line.trim().to_string(), &mut env)? {
-            println!("[{}:{}] {}", file_path, line_count + 1, env);
+    let code = match fs::read_to_string(file_path.clone()) {
+        Ok(code) => code,
+        Err(_) => {
+            eprintln!("FILE `{}` DOES NOT EXIST", file_path);
+            std::process::exit(1);
+        }
+    };
+
+    for (line_count, line) in code.lines().enumerate() {
+        match interpret_line(line.trim().to_string(), &mut env) {
+            Ok(true) => println!("[{}:{}] {}", file_path, line_count + 1, env),
+            Ok(false) => (),
+            Err(err) => {
+                eprintln!("error: {}:{}:{}\n{}\n{}", file_path, line_count, err.cursor, line, err);
+                std::process::exit(1);
+            },
         }
     }
-    Ok(())
 }
 
-pub fn interpret_line(line: String, env: &mut Env) -> Result<bool> {
+pub fn interpret_line(line: String, env: &mut Env) -> SKIResult<bool> {
     if line.starts_with(';') || line.is_empty() {
         Ok(false)
     } else if line.contains(ASSIGN_DELIMETER) {

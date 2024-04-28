@@ -1,4 +1,5 @@
-use std::{iter::Peekable, str::Chars};
+use std::iter::Peekable;
+use std::str::Chars;
 
 pub enum Token {
     Ident(String),
@@ -8,7 +9,7 @@ pub enum Token {
 
 pub struct Lexer<'a> {
     chars: Peekable<Chars<'a>>,
-    cursor: u8,
+    cursor: usize,
 }
 
 impl<'a> Lexer<'a> {
@@ -33,7 +34,7 @@ impl<'a> Lexer<'a> {
             ';' => None,
             other => {
                 let mut ident = String::from(other);
-                while let Some(ch) = self.chars.next_if(|ch| !matches!(ch, '(' | ')' | ';')) {
+                while let Some(ch) = self.chars.next_if(is_valid_ident) {
                     ident.push(ch);
                     self.cursor += 1;
                 }
@@ -42,7 +43,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    pub fn get_cursor(&self) -> u8 {
+    pub fn get_cursor(&self) -> usize {
         self.cursor
     }
 
@@ -63,4 +64,8 @@ impl<'a> Lexer<'a> {
         }
         true
     }
+}
+
+fn is_valid_ident(ch: &char) -> bool {
+    !matches!(ch, ')' | '(' | ';') && !ch.is_whitespace()
 }
