@@ -1,24 +1,24 @@
-; TRUE is the combinator that takes two functions and returns the first...
-TRUE := K
-; FALSE is the combinator that takes two functions and returns the second...
-FALSE := K I
+# TRUE is the combinator that takes two functions and returns the first...
+TRUE f g := f
+# FALSE is the combinator that takes two functions and returns the second...
+FALSE f g := g
 
-; NOT operator
-NOT := C (C I FALSE)) TRUE
+# NOT operator
+NOT p := p FALSE TRUE
 NOT TRUE         true false
 NOT FALSE        true false
 NOT (NOT TRUE)   true false
 NOT (NOT FALSE)  true false
 
-; AND operator
-AND := C C FALSE
+# AND operator
+AND p q := p q p
 AND TRUE TRUE    true false
 AND TRUE FALSE   true false
 AND FALSE TRUE   true false
 AND FALSE FALSE  true false
 
-; OR operator
-OR := C I TRUE
+# OR operator
+OR p q := NOT (AND (NOT p) (NOT q))
 OR TRUE FALSE    true false
 OR FALSE TRUE    true false
 OR FALSE FALSE   true false
