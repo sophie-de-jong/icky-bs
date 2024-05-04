@@ -1,4 +1,5 @@
 use std::fmt;
+use std::rc::Rc;
 use crate::context::Context;
 use crate::lexer::{Lexer, Token, TokenKind};
 use crate::error::{SKIError, SKIResult};
@@ -84,8 +85,8 @@ impl fmt::Display for Combinator {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Combinator(Combinator), // Built-in combinator (i.e. S, K, I)
-    Variable(String),       // User defined combinators, built-from existing ones (i.e. TRUE := K, FALSE := K I)
-    Symbol(String),         // Free variable with no binding (i.e. f, x, g)
+    Variable(Rc<str>),      // User defined combinators, built-from existing ones (i.e. TRUE := K, FALSE := K I)
+    Symbol(Rc<str>),        // Free variable with no binding (i.e. f, x, g)
     Term(Vec<Expr>),        // Parenthesized expression (i.e. (K x y), (f (x y)))
 }
 
@@ -116,7 +117,7 @@ impl Expr {
         match token.kind {
             TokenKind::Ident if is_valid_symbol(&token.text) => {
                 if allowed_symbols.map_or(true, |v| v.contains(&token.text)) {
-                    Ok(Expr::Symbol(token.text))
+                    Ok(Expr::Symbol(Rc::from(token.text)))
                 } else {
                     Err(SKIError::new("undefined symbol", token.loc, token.text.len()))
                 }
@@ -130,7 +131,7 @@ impl Expr {
                     "C" => Ok(Expr::Combinator(Combinator::C)),
                     "Y" => Ok(Expr::Combinator(Combinator::Y)),
                     name => if context.has_variable(name) {
-                        Ok(Expr::Variable(token.text))
+                        Ok(Expr::Variable(Rc::from(name)))
                     } else {
                         Err(SKIError::new("combinator doesn't exist", token.loc, token.text.len()))
                     },
@@ -154,7 +155,8 @@ impl Expr {
                 }
 
                 if term.is_empty() {
-                    Err(SKIError::new("term cannot be empty", token.loc.clone(), token.loc.width_from(&lexer.loc())))
+                    let width = token.loc.width_from(&lexer.loc());
+                    Err(SKIError::new("term cannot be empty", token.loc, width))
                 } else if term.len() == 1 {
                     Ok(term.pop().unwrap())
                 } else {
@@ -171,63 +173,49 @@ impl Expr {
             panic!("max recursion depth for reduce")
         }
 
-        match self {
-            Expr::Symbol(_) | Expr::Combinator(_) => (),
-            Expr::Variable(name) => {
-                *self = context.get_variable(name).expect("bindings must contain the variable");
-                self.reduce(context, depth - 1);
+        if let Expr::Term(term) = self {
+            // Handles the case where brackets are enclosed around
+            // a single term, i.e. f (x) -> f x
+            if term.len() == 1 {
+                *self = term.pop().unwrap();
+                return self.reduce(context, depth - 1);
             }
-            Expr::Term(term) => {
-                // Handles the case where brackets are enclosed around
-                // a single term, i.e. f (x) -> f x
-                if term.len() == 1 {
-                    *self = term.pop().unwrap();
-                    return self.reduce(context, depth - 1);
-                }
 
-                match term.pop().expect("expression must contain at least one element") {
-                    // If a term starts with another term, we can safely extract it
-                    // without losing application order of combinators.
-                    // (i.e. f ((K I) x y) -> f (K x y))
-                    Expr::Term(mut subterm) => {
-                        term.append(&mut subterm);
-                        self.reduce(context, depth - 1);
+            match term.pop().expect("expression must contain at least one element") {
+                // If a term starts with another term, we can safely extract it
+                // without losing application order of combinators.
+                // (i.e. f ((K I) x y) -> f (K x y))
+                Expr::Term(mut subterm) => {
+                    term.append(&mut subterm);
+                    self.reduce(context, depth - 1);
+                }
+                Expr::Variable(name) if context.get_required_args(&name).expect("bindings must contain the variable") <= term.len() => {
+                    let expr = context.get_variable(&name).expect("bindings must contain the variable");
+                    term.push(expr);
+                    self.reduce(context, depth - 1);
+                }
+                Expr::Combinator(combinator) if combinator.required_args() <= term.len() => {
+                    combinator.apply_rule(term);
+                    self.reduce(context, depth - 1);
+                }
+                // A symbol or combinator that doesn't have enough arguments can safely simplify
+                // its arguments individually. 
+                // (i.e. S (I x) y -> S x y)
+                sym => {
+                    for expr in term.iter_mut() {
+                        expr.reduce(context, depth - 1);
                     }
-                    // Always reduce variables down to their definitions.
-                    Expr::Variable(name) => {
-                        let expr = context.get_variable(&name).expect("bindings must contain the variable");
-                        term.push(expr);
-                        self.reduce(context, depth - 1);
-                    }
-                    Expr::Combinator(combinator) if combinator.required_args() <= term.len() => {
-                        combinator.apply_rule(term);
-                        self.reduce(context, depth - 1);
-                    }
-                    // A symbol or combinator that doesn't have enough arguments can safely simplify
-                    // its arguments individually. 
-                    // (i.e. S (I x) y -> S x y)
-                    sym @ Expr::Combinator(_) | sym @ Expr::Symbol(_) => {
-                        for expr in term.iter_mut() {
-                            expr.reduce(context, depth - 1);
-                        }
-                        term.push(sym);
-                    }
+                    term.push(sym);
                 }
             }
         }
     }
 
     // Compiles an expression down to a new expression that is logically equivalent to the old
-    // one except without any symbols.
-    pub fn remove_symbols(&mut self, mut symbols: Vec<String>) {
-        while let Some(symbol) = symbols.pop() {
-            self.remove_symbol(&symbol);
-        }
-    }
-
-    fn remove_symbol(&mut self, symbol: &str) {
+    // one except without the given symbol.
+    pub fn remove_symbol(&mut self, symbol: &str) {
         match self {
-            Expr::Symbol(symbol_2) if symbol == *symbol_2 => {
+            Expr::Symbol(symbol_2) if symbol == symbol_2.as_ref() => {
                 *self = Expr::Combinator(Combinator::I)
             }
             Expr::Combinator(_) | Expr::Variable(_) | Expr::Symbol(_) => {
@@ -245,7 +233,7 @@ impl Expr {
                 let mut expr = Expr::Term(term.drain(1..).collect());                
                 let first = term.first_mut().unwrap();
 
-                if *first == Expr::Symbol(symbol.to_string()) && !expr.contains_symbol(symbol) {
+                if *first == Expr::Symbol(Rc::from(symbol)) && !expr.contains_symbol(symbol) {
                     term.pop();
                     term.push(expr);
                 } else if !expr.contains_symbol(symbol) && first.contains_symbol(symbol) {
@@ -269,15 +257,8 @@ impl Expr {
     fn contains_symbol(&self, symbol: &str) -> bool {
         match self {
             Expr::Combinator(_) | Expr::Variable(_) => false,
-            Expr::Symbol(symbol_2) => symbol == *symbol_2,
-            Expr::Term(term) => {
-                for expr in term {
-                    if expr.contains_symbol(symbol) {
-                        return true
-                    }
-                }
-                false
-            }
+            Expr::Symbol(symbol_2) => symbol == symbol_2.as_ref(),
+            Expr::Term(term) => term.iter().any(|expr| expr.contains_symbol(symbol)),
         }
     }
 }
@@ -287,40 +268,77 @@ impl fmt::Display for Expr {
         match self {
             Expr::Combinator(combinator) => write!(f, "{}", combinator),
             Expr::Variable(name) | Expr::Symbol(name) => write!(f, "{}", name),
-            Expr::Term(expr) => write!(f, "{}", term_to_string(expr)),
+            Expr::Term(term) => write!(f, "{}", term_to_string(term)),
         }
     }
 }
 
-fn term_to_string(expr: &[Expr]) -> String {
+fn term_to_string(term: &[Expr]) -> String {
     let mut result = String::new();
-    for (index, term) in expr.iter().rev().enumerate() {
-        match term {
+    for (index, expr) in term.iter().rev().enumerate() {
+        match expr {
             Expr::Combinator(combinator) => result.push_str(&combinator.to_string()),
             Expr::Variable(name) | Expr::Symbol(name) => result.push_str(name),
-            Expr::Term(expr) => result.push_str(&format!("({})", term_to_string(expr))),
+            Expr::Term(subterm) => result.push_str(&format!("({})", term_to_string(subterm))),
         }
-        if index + 1 < expr.len() {
+        if index < term.len() - 1 {
             result.push(' ')
         }
     }
     result
 }
 
-pub fn is_valid_combinator(combinator: &str) -> bool {
-    for ch in combinator.chars() {
-        if !matches!(ch, 'A'..='Z' | '0'..='9' | '_') {
-            return false
-        }
-    }
-    true
+pub struct Assignment {
+    pub name: String,
+    pub expr: Expr,
+    symbols: Vec<String>
 }
 
-pub fn is_valid_symbol(symbol: &str) -> bool {
-    for ch in symbol.chars() {
-        if !matches!(ch, 'a'..='z' | '_') {
-            return false
+impl Assignment {
+    pub fn parse(lexer: &mut Lexer, context: &mut Context) -> SKIResult<Assignment> {
+        let mut symbols = Vec::new();
+        let name: String;
+
+        // Parse name.
+        let token = lexer.next_token().unwrap();
+        if token.is_kind(TokenKind::Ident) && token.has_text_that(is_valid_combinator) {
+            name = token.text
+        } else {
+            return Err(SKIError::new("expected combinator name", token.loc, token.text.len()))
+        };
+
+        // Parse symbols.
+        while let Some(token) = lexer.next_token() {
+            if token.is_kind(TokenKind::ColonEquals) {
+                break
+            } else if token.is_kind(TokenKind::Ident) && token.has_text_that(is_valid_symbol) {
+                symbols.push(token.text);
+            } else {
+                return Err(SKIError::new("expected `:=`", token.loc, token.text.len()));
+            }
+        }
+
+        // Parse expression.
+        let expr = Expr::parse(lexer, context, Some(&symbols))?;
+
+        Ok(Assignment { name, symbols, expr })
+    }
+
+    pub fn compile(&mut self) {
+        for symbol in self.symbols.iter().rev() {
+            self.expr.remove_symbol(symbol);
         }
     }
-    true
+
+    pub fn required_args(&self) -> usize {
+        self.symbols.len()
+    }
+}
+
+fn is_valid_combinator(combinator: &str) -> bool {
+    combinator.chars().all(|ch| matches!(ch, 'A'..='Z' | '0'..='9' | '_'))
+}
+
+fn is_valid_symbol(symbol: &str) -> bool {
+    symbol.chars().all(|ch| matches!(ch, 'a'..='z' | '_'))
 }

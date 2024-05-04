@@ -1,6 +1,6 @@
-use crate::error::{SKIError, SKIResult};
-use crate::expr::{is_valid_combinator, is_valid_symbol, Expr};
-use crate::lexer::{Lexer, TokenKind};
+use crate::error::*;
+use crate::expr::*;
+use crate::lexer::*;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -12,7 +12,7 @@ const MAX_RECURSION_DEPTH: usize = 1024;
 
 #[derive(Debug, Default)]
 pub struct Context {
-    bindings: HashMap<String, Expr>,
+    bindings: HashMap<String, (Expr, usize)>,
 }
 
 impl Context {
@@ -29,7 +29,11 @@ impl Context {
     }
 
     pub fn get_variable(&self, name: &str) -> Option<Expr> {
-        self.bindings.get(name).cloned()
+        self.bindings.get(name).map(|(var, _)| var.clone())
+    }
+
+    pub fn get_required_args(&self, name: &str) -> Option<usize> {
+        self.bindings.get(name).map(|(_, args)| *args)
     }
 
     pub fn interpret_file(&mut self, file_path: PathBuf) {
@@ -66,31 +70,10 @@ impl Context {
 
     pub fn evaluate_line(&mut self, lexer: &mut Lexer) -> SKIResult<()> {
         if lexer.current_line().contains(":=") {
-            let mut symbols = Vec::new();
-            let name;
-
-            // Get combinator name.
-            let token = lexer.next_token().unwrap();
-            if token.is_kind(TokenKind::Ident) && token.has_text(is_valid_combinator) {
-                name = token.text
-            } else {
-                return Err(SKIError::new("expected combinator name", token.loc, token.text.len()))
-            };
-
-            // Get symbols.
-            while let Some(token) = lexer.next_token() {
-                if token.is_kind(TokenKind::ColonEquals) {
-                    break
-                } else if token.is_kind(TokenKind::Ident) && token.has_text(is_valid_symbol) {
-                    symbols.push(token.text);
-                } else {
-                    return Err(SKIError::new("expected `:=`", token.loc, token.text.len()));
-                }
-            }
-
-            let mut expr = Expr::parse(lexer, self, Some(&symbols))?;
-            expr.remove_symbols(symbols);
-            self.bindings.insert(name, expr);
+            let mut assignment = Assignment::parse(lexer, self)?;
+            assignment.compile();
+            let args = assignment.required_args();
+            self.bindings.insert(assignment.name, (assignment.expr, args));
         } else {
             let mut expr = Expr::parse(lexer, self, None)?;
             expr.reduce(self, MAX_RECURSION_DEPTH);

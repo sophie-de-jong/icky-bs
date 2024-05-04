@@ -65,7 +65,7 @@ impl Token {
         self.kind == kind
     }
 
-    pub fn has_text(&self, pred: impl FnOnce(&str) -> bool) -> bool {
+    pub fn has_text_that(&self, pred: impl FnOnce(&str) -> bool) -> bool {
         pred(&self.text)
     }
 }
