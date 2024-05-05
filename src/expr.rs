@@ -70,15 +70,8 @@ impl Combinator {
 }
 
 impl fmt::Display for Combinator {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Combinator::I => write!(f, "I"),
-            Combinator::K => write!(f, "K"),
-            Combinator::S => write!(f, "S"),
-            Combinator::B => write!(f, "B"),
-            Combinator::C => write!(f, "C"),
-            Combinator::Y => write!(f, "Y"),
-        }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self) // Debug print is the same as display print.
     }
 }
 
@@ -104,7 +97,7 @@ impl Expr {
 
         if term.is_empty() {
             let width = start_loc.width_from(&lexer.loc());
-            Err(SKIError::new("term cannot be empty", start_loc, width))
+            Err(SKIError::new("expression cannot be empty", start_loc, width))
         } else if term.len() == 1 {
             Ok(term.pop().unwrap())
         } else {
@@ -168,42 +161,45 @@ impl Expr {
         }
     }
 
-    pub fn reduce(&mut self, context: &mut Context, depth: usize) {
-        if depth == 0 {
-            panic!("max recursion depth for reduce")
+    pub fn reduce(&mut self, context: &mut Context, depth: &mut usize) {
+        if *depth == 0 {
+            return
         }
+
+        *depth -= 1;
 
         if let Expr::Term(term) = self {
             // Handles the case where brackets are enclosed around
             // a single term, i.e. f (x) -> f x
             if term.len() == 1 {
                 *self = term.pop().unwrap();
-                return self.reduce(context, depth - 1);
+                return self.reduce(context, depth);
             }
 
             match term.pop().expect("expression must contain at least one element") {
                 // If a term starts with another term, we can safely extract it
                 // without losing application order of combinators.
-                // (i.e. f ((K I) x y) -> f (K x y))
+                // (i.e. f ((K I) x y) -> f (K I x y))
                 Expr::Term(mut subterm) => {
                     term.append(&mut subterm);
-                    self.reduce(context, depth - 1);
+                    self.reduce(context, depth);
                 }
+                // Variables and combinators will only reduce if they have enough arguments.
                 Expr::Variable(name) if context.get_required_args(&name).expect("bindings must contain the variable") <= term.len() => {
                     let expr = context.get_variable(&name).expect("bindings must contain the variable");
                     term.push(expr);
-                    self.reduce(context, depth - 1);
+                    self.reduce(context, depth);
                 }
                 Expr::Combinator(combinator) if combinator.required_args() <= term.len() => {
                     combinator.apply_rule(term);
-                    self.reduce(context, depth - 1);
+                    self.reduce(context, depth);
                 }
                 // A symbol or combinator that doesn't have enough arguments can safely simplify
                 // its arguments individually. 
                 // (i.e. S (I x) y -> S x y)
                 sym => {
                     for expr in term.iter_mut() {
-                        expr.reduce(context, depth - 1);
+                        expr.reduce(context, depth);
                     }
                     term.push(sym);
                 }

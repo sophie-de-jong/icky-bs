@@ -75,8 +75,16 @@ impl Context {
             let args = assignment.required_args();
             self.bindings.insert(assignment.name, (assignment.expr, args));
         } else {
+            let start_loc = lexer.loc();
             let mut expr = Expr::parse(lexer, self, None)?;
-            expr.reduce(self, MAX_RECURSION_DEPTH);
+            let mut depth = MAX_RECURSION_DEPTH;
+            expr.reduce(self, &mut depth);
+
+            if depth == 0 {
+                let width = start_loc.width_from(&lexer.loc());
+                return Err(SKIError::new("max recursion depth reached", start_loc, width));
+            }
+
             println!("{} {}", OUTPUT_PROMPT, expr);
         }
 
