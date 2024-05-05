@@ -98,15 +98,20 @@ impl Lexer {
     }
 
     pub fn is_exhausted(&self) -> bool {
-        self.index > self.chars.len()
+        self.index >= self.chars.len()
     }
 
     pub fn current_line(&self) -> String {
+        let eol = self.current_line_length() + self.bol;
+        self.chars[self.bol..eol].iter().collect()
+    }
+
+    pub fn current_line_length(&self) -> usize {
         let mut eol = self.bol;
         while eol < self.chars.len() && self.chars[eol] != '\n' {
             eol += 1;
         }
-        self.chars[self.bol..eol].iter().collect()
+        eol - self.bol
     }
 
     pub fn loc(&self) -> Loc {

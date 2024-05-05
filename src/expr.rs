@@ -4,14 +4,16 @@ use crate::context::Context;
 use crate::lexer::{Lexer, Token, TokenKind};
 use crate::error::{SKIError, SKIResult};
 
+// Enum representing the six built-in combinators which can be used
+// to translate any expression of lambda calculus to combinatory logic
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Combinator {
-    I,
-    K,
-    S,
-    B,
-    C,
-    Y,
+    I, // I x     -> x
+    K, // K x y   -> x
+    S, // S f g x -> f x ( g x )
+    B, // B f g x -> f ( g x )
+    C, // C f g x -> f x g
+    Y, // Y f     -> f (Y f)
 }
 
 impl Combinator {
@@ -78,7 +80,7 @@ impl fmt::Display for Combinator {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Combinator(Combinator), // Built-in combinator (i.e. S, K, I)
-    Variable(Rc<str>),      // User defined combinators, built-from existing ones (i.e. TRUE := K, FALSE := K I)
+    Variable(Rc<str>),      // User defined combinators, built from existing ones (i.e. TRUE := K, FALSE := K I)
     Symbol(Rc<str>),        // Free variable with no binding (i.e. f, x, g)
     Term(Vec<Expr>),        // Parenthesized expression (i.e. (K x y), (f (x y)))
 }
@@ -87,7 +89,7 @@ impl Expr {
     pub fn parse(lexer: &mut Lexer, context: &mut Context, allowed_symbols: Option<&[String]>) -> SKIResult<Expr> {
         let mut term = Vec::new();
         let start_loc = lexer.loc();
-        let length = lexer.current_line().len();
+        let length = lexer.current_line_length();
 
         while let Some(token) = lexer.next_token() {
             if let TokenKind::Eol = token.kind {
@@ -143,7 +145,7 @@ impl Expr {
 
                 if term.is_empty() {
                     let width = token.loc.width_from(&lexer.loc());
-                    Err(SKIError::new("term cannot be empty", token.loc, width))
+                    Err(SKIError::new("empty term", token.loc, width))
                 } else if term.len() == 1 {
                     Ok(term.pop().unwrap())
                 } else {
