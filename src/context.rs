@@ -28,12 +28,12 @@ impl Context {
         self.bindings.contains_key(name)   
     }
 
-    pub fn get_variable(&self, name: &str) -> Option<Expr> {
-        self.bindings.get(name).map(|(var, _)| var.clone())
+    pub fn get_variable(&self, name: &str) -> Expr {
+        self.bindings.get(name).map(|(var, _)| var.clone()).expect("bindings must contain the variable")
     }
 
-    pub fn get_required_args(&self, name: &str) -> Option<usize> {
-        self.bindings.get(name).map(|(_, args)| *args)
+    pub fn get_required_args(&self, name: &str) -> usize {
+        self.bindings.get(name).map(|(_, args)| *args).expect("bindings must contain the variable")
     }
 
     pub fn interpret_file(&mut self, file_path: PathBuf) {
@@ -55,11 +55,11 @@ impl Context {
             print!("{} ", INPUT_PROMPT);
             io::stdout().flush().unwrap();
 
-            if io::stdin().read_line(&mut line).unwrap() <= 2 {
+            if io::stdin().read_line(&mut line).unwrap() == 0 {
                 break
             }
     
-            let mut lexer = Lexer::new(line.trim().chars().collect(), None);
+            let mut lexer = Lexer::new(line.chars().collect(), None);
             if let Err(err) = self.evaluate_line(&mut lexer) {
                 eprintln!("{}{}", " ".repeat(INPUT_PROMPT.len() + 1), err);
             }
@@ -76,12 +76,13 @@ impl Context {
             self.bindings.insert(assignment.name, (assignment.expr, args));
         } else {
             let start_loc = lexer.loc();
+            let length = lexer.current_line().len();
             let mut expr = Expr::parse(lexer, self, None)?;
             let mut depth = MAX_RECURSION_DEPTH;
             expr.reduce(self, &mut depth);
 
             if depth == 0 {
-                let width = start_loc.width_from(&lexer.loc());
+                let width = length - start_loc.column() - 1;
                 return Err(SKIError::new("max recursion depth reached", start_loc, width));
             }
 

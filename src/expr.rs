@@ -87,17 +87,18 @@ impl Expr {
     pub fn parse(lexer: &mut Lexer, context: &mut Context, allowed_symbols: Option<&[String]>) -> SKIResult<Expr> {
         let mut term = Vec::new();
         let start_loc = lexer.loc();
+        let length = lexer.current_line().len();
 
         while let Some(token) = lexer.next_token() {
             if let TokenKind::Eol = token.kind {
                 break
             }
-            term.push(Expr::parse_term(token, lexer, context, allowed_symbols)?)
+            term.push(Expr::parse_term(token, lexer, context, allowed_symbols)?);
         }
 
         if term.is_empty() {
-            let width = start_loc.width_from(&lexer.loc());
-            Err(SKIError::new("expression cannot be empty", start_loc, width))
+            let width = length - start_loc.column();
+            Err(SKIError::new("empty expression", start_loc, width))
         } else if term.len() == 1 {
             Ok(term.pop().unwrap())
         } else {
@@ -126,25 +127,18 @@ impl Expr {
                     name => if context.has_variable(name) {
                         Ok(Expr::Variable(Rc::from(name)))
                     } else {
-                        Err(SKIError::new("combinator doesn't exist", token.loc, token.text.len()))
+                        Err(SKIError::new("combinator does not exist", token.loc, token.text.len()))
                     },
                 }
             },
-            TokenKind::Ident | TokenKind::Invalid => Err(SKIError::new("bad identifier", token.loc, token.text.len())),
             TokenKind::OpenParen => {
                 let mut term = Vec::new();
-                let mut found_close_paren = false;
 
                 while let Some(token) = lexer.next_token() {
                     if token.is_kind(TokenKind::CloseParen) {
-                        found_close_paren = true;
                         break
                     }
                     term.push(Expr::parse_term(token, lexer, context, allowed_symbols)?)
-                }
-
-                if !found_close_paren {
-                    return Err(SKIError::new("expected closing paren", lexer.loc(), 1))
                 }
 
                 if term.is_empty() {
@@ -156,8 +150,10 @@ impl Expr {
                     term.reverse();
                     Ok(Expr::Term(term))
                 }
-            },
-            _ => Err(SKIError::new("unexpected token", token.loc, token.text.len()))
+            }
+            TokenKind::Ident => Err(SKIError::new("bad identifier", token.loc, token.text.len())),
+            TokenKind::Invalid => Err(SKIError::new("unexpected character", token.loc, 1)),
+            _ => Err(SKIError::new("unexpected token", token.loc, token.text.len())),
         }
     }
 
@@ -165,7 +161,6 @@ impl Expr {
         if *depth == 0 {
             return
         }
-
         *depth -= 1;
 
         if let Expr::Term(term) = self {
@@ -185,8 +180,8 @@ impl Expr {
                     self.reduce(context, depth);
                 }
                 // Variables and combinators will only reduce if they have enough arguments.
-                Expr::Variable(name) if context.get_required_args(&name).expect("bindings must contain the variable") <= term.len() => {
-                    let expr = context.get_variable(&name).expect("bindings must contain the variable");
+                Expr::Variable(name) if context.get_required_args(&name) <= term.len() => {
+                    let expr = context.get_variable(&name);
                     term.push(expr);
                     self.reduce(context, depth);
                 }

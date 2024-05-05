@@ -16,7 +16,14 @@ pub enum Loc {
 }
 
 impl Loc {
-    fn get_column(&self) -> usize {
+    fn row(&self) -> usize {
+        match self {
+            Loc::File { path: _, line: _, row, col: _ } => *row,
+            Loc::Repl { row, col: _ } => *row,
+        }
+    }
+
+    pub fn column(&self) -> usize {
         match self {
             Loc::File { path: _, line: _, row: _, col } => *col,
             Loc::Repl { row: _, col } => *col,
@@ -24,7 +31,8 @@ impl Loc {
     }
 
     pub fn width_from(&self, other: &Loc) -> usize {
-        self.get_column().abs_diff(other.get_column())
+        assert!(self.row() == other.row());
+        self.column().abs_diff(other.column())
     }
 }
 
