@@ -75,7 +75,7 @@ impl Context {
             let args = assignment.required_args();
             self.bindings.insert(assignment.name, (assignment.expr, args));
         } else {
-            let start_loc = lexer.loc();
+            let start_loc = lexer.location();
             let length = lexer.current_line_length();
             let mut expr = Expr::parse(lexer, self, None)?;
             let mut depth = MAX_RECURSION_DEPTH;

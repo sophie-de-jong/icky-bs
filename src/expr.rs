@@ -88,7 +88,7 @@ pub enum Expr {
 impl Expr {
     pub fn parse(lexer: &mut Lexer, context: &mut Context, allowed_symbols: Option<&[String]>) -> SKIResult<Expr> {
         let mut term = Vec::new();
-        let start_loc = lexer.loc();
+        let start_location = lexer.location();
         let length = lexer.current_line_length();
 
         while let Some(token) = lexer.next_token() {
@@ -99,8 +99,8 @@ impl Expr {
         }
 
         if term.is_empty() {
-            let width = length - start_loc.column();
-            Err(SKIError::new("empty expression", start_loc, width))
+            let width = length - start_location.column();
+            Err(SKIError::new("empty expression", start_location, width))
         } else if term.len() == 1 {
             Ok(term.pop().unwrap())
         } else {
@@ -115,7 +115,7 @@ impl Expr {
                 if allowed_symbols.map_or(true, |v| v.contains(&token.text)) {
                     Ok(Expr::Symbol(Rc::from(token.text)))
                 } else {
-                    Err(SKIError::new("undefined symbol", token.loc, token.text.len()))
+                    Err(SKIError::new("undefined symbol", token.location, token.text.len()))
                 }
             },
             TokenKind::Ident if is_valid_combinator(&token.text) => {
@@ -129,7 +129,7 @@ impl Expr {
                     name => if context.has_variable(name) {
                         Ok(Expr::Variable(Rc::from(name)))
                     } else {
-                        Err(SKIError::new("combinator does not exist", token.loc, token.text.len()))
+                        Err(SKIError::new("combinator does not exist", token.location, token.text.len()))
                     },
                 }
             },
@@ -144,8 +144,8 @@ impl Expr {
                 }
 
                 if term.is_empty() {
-                    let width = token.loc.width_from(&lexer.loc());
-                    Err(SKIError::new("empty term", token.loc, width))
+                    let width = token.location.width_from(&lexer.location());
+                    Err(SKIError::new("empty term", token.location, width))
                 } else if term.len() == 1 {
                     Ok(term.pop().unwrap())
                 } else {
@@ -153,9 +153,9 @@ impl Expr {
                     Ok(Expr::Term(term))
                 }
             }
-            TokenKind::Ident => Err(SKIError::new("bad identifier", token.loc, token.text.len())),
-            TokenKind::Invalid => Err(SKIError::new("unexpected character", token.loc, 1)),
-            _ => Err(SKIError::new("unexpected token", token.loc, token.text.len())),
+            TokenKind::Ident => Err(SKIError::new("bad identifier", token.location, token.text.len())),
+            TokenKind::Invalid => Err(SKIError::new("unexpected character", token.location, 1)),
+            _ => Err(SKIError::new("unexpected token", token.location, token.text.len())),
         }
     }
 
@@ -297,7 +297,7 @@ impl Assignment {
         if token.is_kind(TokenKind::Ident) && token.has_text_that(is_valid_combinator) {
             name = token.text
         } else {
-            return Err(SKIError::new("expected combinator name", token.loc, token.text.len()))
+            return Err(SKIError::new("expected combinator name", token.location, token.text.len()))
         };
 
         // Parse symbols.
@@ -307,7 +307,7 @@ impl Assignment {
             } else if token.is_kind(TokenKind::Ident) && token.has_text_that(is_valid_symbol) {
                 symbols.push(token.text);
             } else {
-                return Err(SKIError::new("expected `:=`", token.loc, token.text.len()));
+                return Err(SKIError::new("expected `:=`", token.location, token.text.len()));
             }
         }
 

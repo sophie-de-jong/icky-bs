@@ -2,7 +2,7 @@ use core::fmt;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone)]
-pub enum Loc {
+pub enum Location {
     File {
         path: PathBuf,
         line: String,
@@ -15,22 +15,22 @@ pub enum Loc {
     }
 }
 
-impl Loc {
+impl Location {
     fn row(&self) -> usize {
         match self {
-            Loc::File { path: _, line: _, row, col: _ } => *row,
-            Loc::Repl { row, col: _ } => *row,
+            Location::File { path: _, line: _, row, col: _ } => *row,
+            Location::Repl { row, col: _ } => *row,
         }
     }
 
     pub fn column(&self) -> usize {
         match self {
-            Loc::File { path: _, line: _, row: _, col } => *col,
-            Loc::Repl { row: _, col } => *col,
+            Location::File { path: _, line: _, row: _, col } => *col,
+            Location::Repl { row: _, col } => *col,
         }
     }
 
-    pub fn width_from(&self, other: &Loc) -> usize {
+    pub fn width_from(&self, other: &Location) -> usize {
         assert!(self.row() == other.row());
         self.column().abs_diff(other.column())
     }
@@ -65,7 +65,7 @@ impl fmt::Display for TokenKind {
 pub struct Token {
     pub kind: TokenKind,
     pub text: String,
-    pub loc: Loc
+    pub location: Location
 }
 
 impl Token {
@@ -114,15 +114,15 @@ impl Lexer {
         eol - self.bol
     }
 
-    pub fn loc(&self) -> Loc {
+    pub fn location(&self) -> Location {
         match &self.file_path {
-            Some(file_path) => Loc::File {
+            Some(file_path) => Location::File {
                 path: file_path.clone(),
                 line: self.current_line(),
                 row: self.line,
                 col: self.index - self.bol
             },
-            None => Loc::Repl {
+            None => Location::Repl {
                 row: self.line,
                 col: self.index - self.bol
             },
@@ -175,31 +175,31 @@ impl Lexer {
 
     pub fn next_token(&mut self) -> Option<Token> {
         self.drop_whitespace();
-        let loc = self.loc();
+        let location = self.location();
 
         if let Some(ch) = self.drop_char() {
             let mut text = ch.to_string();
             let token = match ch {
-                '\n' => Token { kind: TokenKind::Eol,       text, loc },
-                '(' => Token { kind: TokenKind::OpenParen,  text, loc },
-                ')' => Token { kind: TokenKind::CloseParen, text, loc },
+                '\n' => Token { kind: TokenKind::Eol,       text, location },
+                '(' => Token { kind: TokenKind::OpenParen,  text, location },
+                ')' => Token { kind: TokenKind::CloseParen, text, location },
                 '#' => {
                     self.drop_line();
                     return self.next_token()
                 }
                 ':' => if let Some(ch) = self.drop_char_if(|ch| ch == '=') {
                     text.push(ch);
-                    Token { kind: TokenKind::ColonEquals, text, loc }
+                    Token { kind: TokenKind::ColonEquals, text, location }
                 } else {
-                    Token { kind: TokenKind::Invalid,     text, loc }
+                    Token { kind: TokenKind::Invalid,     text, location }
                 },
                 _ => if is_ident_char(ch) {
                     while let Some(ch) = self.drop_char_if(is_ident_char) {
                         text.push(ch)
                     }
-                    Token { kind: TokenKind::Ident,   text, loc }
+                    Token { kind: TokenKind::Ident,   text, location }
                 } else {
-                    Token { kind: TokenKind::Invalid, text, loc }
+                    Token { kind: TokenKind::Invalid, text, location }
                 }
             };
 
