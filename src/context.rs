@@ -4,9 +4,7 @@ use crate::lexer::*;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use std::io::{self, Write};
 
-const INPUT_PROMPT: &str = "skibc>";
 const OUTPUT_PROMPT: &str = " =>";
 const MAX_RECURSION_DEPTH: usize = 1024;
 
@@ -45,26 +43,6 @@ impl Context {
                 eprintln!("{}", err);
                 std::process::exit(1);
             }
-        }
-    }
-
-    pub fn start_repl(&mut self) {
-        let mut line = String::new();
-
-        loop {
-            print!("{} ", INPUT_PROMPT);
-            io::stdout().flush().unwrap();
-
-            if io::stdin().read_line(&mut line).unwrap() == 0 {
-                break
-            }
-    
-            let mut lexer = Lexer::new(line.chars().collect(), None);
-            if let Err(err) = self.evaluate_line(&mut lexer) {
-                eprintln!("{}{}", " ".repeat(INPUT_PROMPT.len() + 1), err);
-            }
-
-            line.clear();
         }
     }
 

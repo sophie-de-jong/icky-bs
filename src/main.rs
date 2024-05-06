@@ -5,7 +5,32 @@ mod error;
 
 use std::path::{Path, PathBuf};
 use std::env::Args;
+use std::io::{self, Write};
+use crate::lexer::Lexer;
 use crate::context::Context;
+
+const FILE_EXTENSION: &str = "skibc";
+const INPUT_PROMPT: &str = "skibc>";
+
+fn start_repl(mut context: Context) {
+    let mut line = String::new();
+
+    loop {
+        print!("{} ", INPUT_PROMPT);
+        io::stdout().flush().unwrap();
+
+        if io::stdin().read_line(&mut line).unwrap() == 0 {
+            break
+        }
+
+        let mut lexer = Lexer::new(line.chars().collect(), None);
+        if let Err(err) = context.evaluate_line(&mut lexer) {
+            eprintln!("{}{}", " ".repeat(INPUT_PROMPT.len() + 1), err);
+        }
+
+        line.clear();
+    }
+}
 
 #[derive(Default)]
 struct Config {
@@ -17,44 +42,51 @@ impl Config {
     fn build(args: &mut Args) -> Result<Config, String> {
         args.next().expect("expected program name in arguments");
         let mut config = Config::default();
-        let arg = args.next();
 
-        if arg.clone().is_some_and(|arg| arg.starts_with("--")) {
-            config.process_arg(arg, args);
-        } else if let Some(path) = arg {
-            let interpret_path = Path::new(&path);
-            if is_valid_path(interpret_path) {
-                config.file_path = Some(interpret_path.to_path_buf());
-                args.next();
+        if let Some(arg) = args.next() {
+            if arg.starts_with("--") {
+                config.process_arg(&arg, args)?;
             } else {
-                return Err(format!("ERROR: `{}` does not exist or is not a file ending in .skibc", path))
+                let interpret_path = Config::build_path(&arg)?;
+                config.file_path = Some(interpret_path);
+
+                if let Some(arg) = args.next() {
+                    config.process_arg(&arg, args)?;
+                }
             }
         }
         
         Ok(config)
     }
 
-    fn process_arg(&mut self, arg: Option<String>, args: &mut Args) -> Result<(), String> {
-        match arg.map(|arg| arg.as_str()) {
-            Some("--load") => {
-                for file_path in args {
-                    let import_path = Path::new(&file_path);
-                    if is_valid_path(import_path) {
-                        self.imports.push(import_path.to_path_buf())
-                    } else {
-                        return self.process_arg(Some(file_path), args)
+    fn process_arg(&mut self, arg: &str, args: &mut Args) -> Result<(), String> {
+        match arg {
+            "--load" => {
+                for arg in &mut *args {
+                    if arg.starts_with("--") {
+                        return self.process_arg(&arg, args)
                     }
+
+                    let import_path = Config::build_path(&arg)?;
+                    self.imports.push(import_path)
                 }
                 Ok(())
             }
-            Some(bad_arg) => Err(format!("unexpected argument `{}`", bad_arg)),
-            None => Ok(()),
+            bad_arg => Err(format!("unexpected argument `{}`", bad_arg)),
         }
     }
-}
 
-fn is_valid_path(path: &Path) -> bool {
-    path.exists() && path.extension().is_some_and(|ext| ext == "skibc")
+    fn build_path(arg: &str) -> Result<PathBuf, String> {
+        let path = Path::new(arg);
+
+        if path.extension().map_or(true, |ext| ext != "skibc") {
+            Err(format!("file '{}' does not end in .{}", arg, FILE_EXTENSION))
+        } else if !path.exists() {
+            Err(format!("file '{}' does not exist in the current directory", arg))
+        } else {
+            Ok(path.to_path_buf())
+        }
+    }
 }
 
 fn main() -> Result<(), String> {
@@ -64,7 +96,7 @@ fn main() -> Result<(), String> {
     if let Some(file_path) = config.file_path {
         context.interpret_file(file_path);
     } else {
-        context.start_repl();
+        start_repl(context);
     }
 
     Ok(())
