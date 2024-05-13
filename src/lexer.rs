@@ -10,8 +10,7 @@ pub enum Location {
         path: PathBuf
     },
     Repl {
-        line: String,
-        col: usize
+        cursor: usize
     }
 }
 
@@ -125,8 +124,7 @@ impl Lexer {
                 col: self.index - self.bol
             },
             None => Location::Repl {
-                line: self.current_line(),
-                col: self.index - self.bol
+                cursor: self.index - self.bol
             },
         }
     }

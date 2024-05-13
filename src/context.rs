@@ -252,8 +252,8 @@ impl Context {
             }
             Command::Print { expr, location } => {
                 match location {
-                    Location::File { path, row, .. } => {
-                        println!("{}:{} => {}", path.to_str().unwrap(), row, expr)
+                    Location::File { line, .. } => {
+                        println!("{} => {}", line.trim(), expr)
                     }
                     Location::Repl { .. } => {
                         println!(" => {}", expr)

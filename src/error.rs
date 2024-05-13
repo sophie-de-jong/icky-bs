@@ -77,8 +77,8 @@ impl fmt::Display for Error {
                 writeln!(f, "{} |     {}", row, line)?;
                 writeln!(f, "{:>width$} |     {}{} {}", "", " ".repeat(col), arrows, self.message)
             }
-            Location::Repl { col, line: _ } => {
-                write!(f, "{}{} {}", " ".repeat(col), arrows, self.message)
+            Location::Repl { cursor, .. } => {
+                write!(f, "{}{} {}", " ".repeat(cursor), arrows, self.message)
             }
         }
     }
