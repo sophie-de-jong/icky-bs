@@ -205,20 +205,24 @@ impl Context {
         self.bindings.contains_key(name)   
     }
 
+    pub fn get_definition(&self, name: &str) -> &Definition {
+        self.bindings.get(name).expect("bindings must contain the variable")
+    }
+
     pub fn get_variable(&self, name: &str) -> Expr {
-        self.bindings.get(name).map(|def| def.expr.clone()).expect("bindings must contain the variable")
+        self.get_definition(name).expr.clone()
     }
 
     pub fn get_required_args(&self, name: &str) -> usize {
-        self.bindings.get(name).map(|def| def.args).expect("bindings must contain the variable")
+        self.get_definition(name).args
     }
 
     pub fn get_source(&self, name: &str) -> Option<&PathBuf> {
-        self.bindings.get(name).map(|def| def.source.as_ref()).expect("bindings must contain the variable")
+        self.get_definition(name).source.as_ref()
     }
 
     pub fn get_repr(&self, name: &str) -> &str {
-        self.bindings.get(name).map(|def| &def.repr).expect("bindings must contain the variable")
+        &self.get_definition(name).repr
     }
 
     pub fn process_file(&mut self, file_path: PathBuf) {

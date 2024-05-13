@@ -216,18 +216,23 @@ impl Expr {
         }
     }
 
-    // Like evaluate, except it attempts to evluate an expression even if it doesn't have enough
-    // arguments.
+    // Like evaluate, except it attempts to evaluate an expression even if arguments
+    // are missing.
     pub fn force_evaluate(&mut self, context: &mut Context, depth: &mut usize) {
         if *depth == 0 {
             return
         }
         *depth -= 1;
 
+        // If we encounter a variable, we force it to evaluate
+        // to its underlying expression no matter if there are
+        // enough arguments.
         if let Expr::Variable(name) = self {
             *self = context.get_variable(name);
-            self.force_evaluate(context, depth)
-        } else if let Expr::Term(term) = self {
+            return self.force_evaluate(context, depth)
+        }
+        
+        if let Expr::Term(term) = self {
             // Handles the case where brackets are enclosed around
             // a single term, i.e. f (x) -> f x
             if term.len() == 1 {
@@ -248,6 +253,8 @@ impl Expr {
                     term.push(expr);
                     self.force_evaluate(context, depth);
                 }
+                // Seeing as built-in combinators cannot reduce at all if there are not enough
+                // arguments, we have to check for required arguments anyway. 
                 Expr::Combinator(combinator) if combinator.required_args() <= term.len() => {
                     combinator.apply_rule(term);
                     self.force_evaluate(context, depth);
