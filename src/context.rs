@@ -4,7 +4,7 @@ use crate::lexer::*;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-pub const FILE_EXTENSION: &str = "skibc";
+pub const FILE_EXTENSION: &str = "ski";
 const MAX_RECURSION_DEPTH: usize = 1024;
 
 #[derive(Debug)]
