@@ -3,7 +3,7 @@ Simple SKI combinator calculus language written in Rust.
 
 ## Quick Start
 ```console
-$ cargo run examples/logic.ski
+$ cargo run examples/logic.ib
 ```
 
 ## Goal/Motivation
