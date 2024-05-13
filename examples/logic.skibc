@@ -1,25 +1,25 @@
-# TRUE is the combinator that takes two functions and returns the first...
+// TRUE is the combinator that takes two functions and returns the first...
 TRUE f g := f
-# FALSE is the combinator that takes two functions and returns the second...
+// FALSE is the combinator that takes two functions and returns the second...
 FALSE f g := g
 
-# NOT operator
+// NOT operator
 NOT p := p FALSE TRUE
-NOT TRUE         true false
-NOT FALSE        true false
-NOT (NOT TRUE)   true false
-NOT (NOT FALSE)  true false
+NOT TRUE       
+NOT FALSE      
+NOT (NOT TRUE) 
+NOT (NOT FALSE)
 
-# AND operator
+// AND operator
 AND p q := p q p
-AND TRUE TRUE    true false
-AND TRUE FALSE   true false
-AND FALSE TRUE   true false
-AND FALSE FALSE  true false
+AND TRUE TRUE  
+AND TRUE FALSE 
+AND FALSE TRUE 
+AND FALSE FALSE
 
-# OR operator
+// OR operator (derived from De Morgan's law)
 OR p q := NOT (AND (NOT p) (NOT q))
-OR TRUE FALSE    true false
-OR FALSE TRUE    true false
-OR FALSE FALSE   true false
-OR TRUE TRUE     true false
+OR TRUE FALSE  
+OR FALSE TRUE  
+OR FALSE FALSE 
+OR TRUE TRUE   

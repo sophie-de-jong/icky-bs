@@ -1,16 +1,14 @@
-T := C I
-TRUE := K
-FALSE := K I
+/link "std/bool.skibc"
 
-# We want pair to have the behaviour PAIR x y TRUE -> TRUE x y -> x
-# Therefore, PAIR x y z should become z x y
-PAIR := B C T
+// We want pair to have the behaviour PAIR x y TRUE -> TRUE x y -> x
+// Therefore, PAIR x y z should become z x y
+PAIR first second bool := bool first second 
 
-# We want FIRST p -> p TRUE so FIRST should become T TRUE
-FIRST := T TRUE
+// We want FIRST p -> p TRUE so FIRST should become T TRUE
+FIRST pair := pair TRUE
 
-# We want SECOND p -> p FALSE so SECOND should become T FALSE
-SECOND := T FALSE
+// We want SECOND p -> p FALSE so SECOND should become T FALSE
+SECOND pair := pair FALSE
 
 FIRST (PAIR x y)
 SECOND (PAIR x y)

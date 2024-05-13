@@ -7,16 +7,13 @@ use std::path::{Path, PathBuf};
 use std::env::Args;
 use std::io::{self, Write};
 use crate::lexer::Lexer;
-use crate::context::Context;
-
-const FILE_EXTENSION: &str = "skibc";
-const INPUT_PROMPT: &str = "skibc>";
+use crate::context::*;
 
 fn start_repl(mut context: Context) {
     let mut line = String::new();
 
-    loop {
-        print!("{} ", INPUT_PROMPT);
+    while !context.quit {
+        print!("{}> ", FILE_EXTENSION);
         io::stdout().flush().unwrap();
 
         if io::stdin().read_line(&mut line).unwrap() == 0 {
@@ -24,18 +21,25 @@ fn start_repl(mut context: Context) {
         }
 
         let mut lexer = Lexer::new(line.chars().collect(), None);
-        if let Err(err) = context.evaluate_line(&mut lexer) {
-            eprintln!("{}{}", " ".repeat(INPUT_PROMPT.len() + 1), err);
+        let command = Command::parse(&mut lexer, &mut context);
+        match command {
+            Ok(command) => context.process_command(command),
+            Err(err) => {
+                eprintln!("{:>width$}{}", " ", err, width = FILE_EXTENSION.len() + 2);
+            }
         }
 
         line.clear();
     }
 }
 
+fn interpret(mut context: Context, file_path: PathBuf) {
+    context.process_file(file_path);
+}
+
 #[derive(Default)]
 struct Config {
     file_path: Option<PathBuf>,
-    imports: Vec<PathBuf>,
 }
 
 impl Config {
@@ -44,42 +48,17 @@ impl Config {
         let mut config = Config::default();
 
         if let Some(arg) = args.next() {
-            if arg.starts_with("--") {
-                config.process_arg(&arg, args)?;
-            } else {
-                let interpret_path = Config::build_path(&arg)?;
-                config.file_path = Some(interpret_path);
-
-                if let Some(arg) = args.next() {
-                    config.process_arg(&arg, args)?;
-                }
-            }
+            let interpret_path = Config::build_path(&arg)?;
+            config.file_path = Some(interpret_path);
         }
         
         Ok(config)
     }
 
-    fn process_arg(&mut self, arg: &str, args: &mut Args) -> Result<(), String> {
-        match arg {
-            "--load" => {
-                for arg in &mut *args {
-                    if arg.starts_with("--") {
-                        return self.process_arg(&arg, args)
-                    }
-
-                    let import_path = Config::build_path(&arg)?;
-                    self.imports.push(import_path)
-                }
-                Ok(())
-            }
-            bad_arg => Err(format!("unexpected argument `{}`", bad_arg)),
-        }
-    }
-
     fn build_path(arg: &str) -> Result<PathBuf, String> {
         let path = Path::new(arg);
 
-        if path.extension().map_or(true, |ext| ext != "skibc") {
+        if path.extension().map_or(true, |ext| ext != FILE_EXTENSION) {
             Err(format!("file '{}' does not end in .{}", arg, FILE_EXTENSION))
         } else if !path.exists() {
             Err(format!("file '{}' does not exist in the current directory", arg))
@@ -91,10 +70,10 @@ impl Config {
 
 fn main() -> Result<(), String> {
     let config = Config::build(&mut std::env::args())?;
-    let mut context = Context::new(config.imports);
+    let context = Context::new(config.file_path.clone());
 
     if let Some(file_path) = config.file_path {
-        context.interpret_file(file_path);
+        interpret(context, file_path);
     } else {
         start_repl(context);
     }

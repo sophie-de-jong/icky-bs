@@ -1,0 +1,8 @@
+/link "std/bool.skibc"
+
+// Main pair defintion
+PAIR first second bool := bool first second 
+
+// Retrieval functions
+FIRST pair := pair TRUE
+SECOND pair := pair FALSE

@@ -1,27 +1,23 @@
-TRUE := K
-FALSE := K I
-PAIR := B C (C I)
-NOT := C (C I FALSE) TRUE
-AND := C C FALSE
+/link "std/pair.skibc"
 
-SUCC := PAIR FALSE
-PRED := C I FALSE
-IS_ZERO := C I TRUE
-IS_POS := B NOT IS_ZERO
-IS_ONE := S (B AND IS_POS) (B IS_ZERO PRED)
+SUCC n := PAIR FALSE n
+PRED := SECOND
+IS_ZERO := FIRST
+IS_POS n := NOT (IS_ZERO n)
+IS_ONE n := AND (IS_ZERO (PRED n)) (NOT (IS_ZERO n))
 
 0 := I
 1 := SUCC 0
 2 := SUCC 1
 3 := SUCC 2
-# and so on...
+// and so on...
 
-IS_ZERO 0        true false
-IS_ZERO 1        true false
-IS_POS 3         true false
-IS_POS 0         true false
-IS_ONE 1         true false
-IS_ONE 0         true false
-IS_ZERO (PRED 1) true false
-IS_POS (SUCC 1)  true false
-# IS_ONE (PRED 2)  true false [FIX ME]
+IS_ZERO 0
+IS_ZERO 1
+IS_POS 3
+IS_POS 0
+IS_ONE 1
+IS_ONE 0
+IS_ZERO (PRED 1)
+IS_POS (SUCC 1)
+IS_ONE (PRED 2)

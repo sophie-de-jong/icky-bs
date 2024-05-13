@@ -1,8 +1,8 @@
 use std::fmt;
 use std::rc::Rc;
 use crate::context::Context;
-use crate::lexer::{Lexer, Token, TokenKind};
-use crate::error::{SKIError, SKIResult};
+use crate::lexer::{Lexer, TokenKind};
+use crate::error::{Error, ErrorKind, Result};
 
 // Enum representing the six built-in combinators which can be used
 // to translate any expression of lambda calculus to combinatory logic
@@ -86,22 +86,17 @@ pub enum Expr {
 }
 
 impl Expr {
-    pub fn parse(lexer: &mut Lexer, context: &mut Context, allowed_symbols: Option<&[String]>) -> SKIResult<Expr> {
+    pub fn parse(lexer: &mut Lexer, context: &mut Context, allowed_symbols: Option<&[String]>) -> Result<Expr> {
         let mut term = Vec::new();
-        let start_location = lexer.location();
-        let length = lexer.current_line_length();
 
-        while let Some(token) = lexer.next_token() {
+        while let Some(token) = lexer.current() {
             if let TokenKind::Eol = token.kind {
                 break
             }
-            term.push(Expr::parse_term(token, lexer, context, allowed_symbols)?);
+            term.push(Expr::parse_term(lexer, context, allowed_symbols)?);
         }
 
-        if term.is_empty() {
-            let width = length - start_location.column();
-            Err(SKIError::new("empty expression", start_location, width))
-        } else if term.len() == 1 {
+        if term.len() == 1 {
             Ok(term.pop().unwrap())
         } else {
             term.reverse();
@@ -109,16 +104,30 @@ impl Expr {
         }
     }
 
-    fn parse_term(token: Token, lexer: &mut Lexer, context: &mut Context, allowed_symbols: Option<&[String]>) -> SKIResult<Expr> {
+    fn parse_term(lexer: &mut Lexer, context: &mut Context, allowed_symbols: Option<&[String]>) -> Result<Expr> {
+        let kinds = [
+            TokenKind::Symbol, 
+            TokenKind::Combinator, 
+            TokenKind::OpenParen, 
+            TokenKind::CloseParen,
+            TokenKind::InvalidChar
+        ];
+        let start_index = lexer.current_index();
+        let token = lexer.expect_tokens(&kinds)?;
+
         match token.kind {
-            TokenKind::Ident if is_valid_symbol(&token.text) => {
+            TokenKind::Symbol => {
                 if allowed_symbols.map_or(true, |v| v.contains(&token.text)) {
                     Ok(Expr::Symbol(Rc::from(token.text)))
                 } else {
-                    Err(SKIError::new("undefined symbol", token.location, token.text.len()))
+                    Err(Error::from_token(
+                        ErrorKind::NotFound, 
+                        "symbol must be taken from assignment arguments",
+                        token
+                    ))
                 }
             },
-            TokenKind::Ident if is_valid_combinator(&token.text) => {
+            TokenKind::Combinator => {
                 match token.text.as_str() {
                     "I" => Ok(Expr::Combinator(Combinator::I)),
                     "K" => Ok(Expr::Combinator(Combinator::K)),
@@ -129,23 +138,28 @@ impl Expr {
                     name => if context.has_variable(name) {
                         Ok(Expr::Variable(Rc::from(name)))
                     } else {
-                        Err(SKIError::new("combinator does not exist", token.location, token.text.len()))
+                        Err(Error::from_token(
+                            ErrorKind::NotFound,
+                            "combinator not found",
+                            token
+                        ))
                     },
                 }
             },
             TokenKind::OpenParen => {
                 let mut term = Vec::new();
 
-                while let Some(token) = lexer.next_token() {
-                    if token.is_kind(TokenKind::CloseParen) {
+                while let Some(token) = lexer.current() {
+                    if token.kind == TokenKind::CloseParen {
+                        lexer.advance();
                         break
                     }
-                    term.push(Expr::parse_term(token, lexer, context, allowed_symbols)?)
+                    term.push(Expr::parse_term(lexer, context, allowed_symbols)?)
                 }
 
                 if term.is_empty() {
-                    let width = token.location.width_from(&lexer.location());
-                    Err(SKIError::new("empty term", token.location, width))
+                    let width = lexer.current_index() - start_index;
+                    Err(Error::new(ErrorKind::EmptyTerm, "term cannot be empty", token.location, width))
                 } else if term.len() == 1 {
                     Ok(term.pop().unwrap())
                 } else {
@@ -153,9 +167,8 @@ impl Expr {
                     Ok(Expr::Term(term))
                 }
             }
-            TokenKind::Ident => Err(SKIError::new("bad identifier", token.location, token.text.len())),
-            TokenKind::Invalid => Err(SKIError::new("unexpected character", token.location, 1)),
-            _ => Err(SKIError::new("unexpected token", token.location, token.text.len())),
+            TokenKind::CloseParen => Err(Error::from_token(ErrorKind::UnbalancedParens, "unexpected right paren", token)),
+            _ => unreachable!()
         }
     }
 
@@ -279,59 +292,4 @@ fn term_to_string(term: &[Expr]) -> String {
         }
     }
     result
-}
-
-pub struct Assignment {
-    pub name: String,
-    pub expr: Expr,
-    symbols: Vec<String>
-}
-
-impl Assignment {
-    pub fn parse(lexer: &mut Lexer, context: &mut Context) -> SKIResult<Assignment> {
-        let mut symbols = Vec::new();
-        let name: String;
-
-        // Parse name.
-        let token = lexer.next_token().unwrap();
-        if token.is_kind(TokenKind::Ident) && token.has_text_that(is_valid_combinator) {
-            name = token.text
-        } else {
-            return Err(SKIError::new("expected combinator name", token.location, token.text.len()))
-        };
-
-        // Parse symbols.
-        while let Some(token) = lexer.next_token() {
-            if token.is_kind(TokenKind::ColonEquals) {
-                break
-            } else if token.is_kind(TokenKind::Ident) && token.has_text_that(is_valid_symbol) {
-                symbols.push(token.text);
-            } else {
-                return Err(SKIError::new("expected `:=`", token.location, token.text.len()));
-            }
-        }
-
-        // Parse expression.
-        let expr = Expr::parse(lexer, context, Some(&symbols))?;
-
-        Ok(Assignment { name, symbols, expr })
-    }
-
-    pub fn compile(&mut self) {
-        for symbol in self.symbols.iter().rev() {
-            self.expr.remove_symbol(symbol);
-        }
-    }
-
-    pub fn required_args(&self) -> usize {
-        self.symbols.len()
-    }
-}
-
-fn is_valid_combinator(combinator: &str) -> bool {
-    combinator.chars().all(|ch| matches!(ch, 'A'..='Z' | '0'..='9' | '_'))
-}
-
-fn is_valid_symbol(symbol: &str) -> bool {
-    symbol.chars().all(|ch| matches!(ch, 'a'..='z' | '_'))
 }

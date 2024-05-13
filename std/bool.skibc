@@ -1,0 +1,8 @@
+// Booleans
+TRUE f g := f
+FALSE f g := g
+
+// Logical operators
+AND p q := p q p
+OR  p q := p p q
+NOT p   := p FALSE TRUE
