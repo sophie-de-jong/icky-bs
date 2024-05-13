@@ -1,4 +1,4 @@
-/link "std/bool.skibc"
+/link "std/bool.ski"
 
 // Main pair defintion
 PAIR first second bool := bool first second 
