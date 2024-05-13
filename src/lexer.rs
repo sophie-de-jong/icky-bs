@@ -15,15 +15,6 @@ pub enum Location {
     }
 }
 
-impl Location {
-    pub fn column(&self) -> usize {
-        match self {
-            Location::File { path: _, line: _, row: _, col } => *col,
-            Location::Repl { line: _, col } => *col,
-        }
-    }
-}
-
 #[derive(PartialEq, Debug)]
 pub enum TokenKind {
     Combinator,

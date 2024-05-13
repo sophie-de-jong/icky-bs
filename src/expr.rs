@@ -172,7 +172,7 @@ impl Expr {
         }
     }
 
-    pub fn reduce(&mut self, context: &mut Context, depth: &mut usize) {
+    pub fn evaluate(&mut self, context: &mut Context, depth: &mut usize) {
         if *depth == 0 {
             return
         }
@@ -183,7 +183,7 @@ impl Expr {
             // a single term, i.e. f (x) -> f x
             if term.len() == 1 {
                 *self = term.pop().unwrap();
-                return self.reduce(context, depth);
+                return self.evaluate(context, depth);
             }
 
             match term.pop().expect("expression must contain at least one element") {
@@ -192,24 +192,24 @@ impl Expr {
                 // (i.e. f ((K I) x y) -> f (K I x y))
                 Expr::Term(mut subterm) => {
                     term.append(&mut subterm);
-                    self.reduce(context, depth);
+                    self.evaluate(context, depth);
                 }
-                // Variables and combinators will only reduce if they have enough arguments.
+                // Variables and combinators will only be evaluated if they have enough arguments.
                 Expr::Variable(name) if context.get_required_args(&name) <= term.len() => {
                     let expr = context.get_variable(&name);
                     term.push(expr);
-                    self.reduce(context, depth);
+                    self.evaluate(context, depth);
                 }
                 Expr::Combinator(combinator) if combinator.required_args() <= term.len() => {
                     combinator.apply_rule(term);
-                    self.reduce(context, depth);
+                    self.evaluate(context, depth);
                 }
                 // A symbol or combinator that doesn't have enough arguments can safely simplify
                 // its arguments individually. 
                 // (i.e. S (I x) y -> S x y)
                 sym => {
                     for expr in term.iter_mut() {
-                        expr.reduce(context, depth);
+                        expr.evaluate(context, depth);
                     }
                     term.push(sym);
                 }

@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 
-const OUTPUT_PROMPT: &str = " =>";
 const MAX_RECURSION_DEPTH: usize = 1024;
 pub const FILE_EXTENSION: &str = "skibc";
 
@@ -18,8 +17,8 @@ pub struct Definition {
 }
 
 pub enum Command {
-    DefineExpr { name: Token, symbols: Vec<String>, def: Definition },
-    Print { expr: Expr },
+    DefineExpr { name: Token, symbols: Vec<String>, definition: Definition },
+    Print { expr: Expr, location: Location },
     Nothing,
 
     // Slash commands.
@@ -108,31 +107,32 @@ impl Command {
                     // Parse expression.
                     let expr = Expr::parse(lexer, context, Some(&symbols))?;
                     let repr = format!("{}{} -> {}", &name.text, args, expr);
-                    let def = Definition {
+                    let definition = Definition {
                         source: context.current_file.clone(),
                         args: symbols.len(),
                         repr,
                         expr
                     };
             
-                    Ok(Command::DefineExpr { name, symbols, def })
+                    Ok(Command::DefineExpr { name, symbols, definition })
                 } else {
                     // Parse expression.
-                    let start_loc = lexer.location();
+                    let location = token.location.clone();
+                    let start_index = lexer.current_index();
                     let mut expr = Expr::parse(lexer, context, None)?;
                     let mut depth = MAX_RECURSION_DEPTH;
-                    expr.reduce(context, &mut depth);
+                    expr.evaluate(context, &mut depth);
 
                     if depth == 0 {
-                        let width = current_line.len() - start_loc.column();
+                        let width = lexer.current_index() - start_index - 1;
                         Err(Error::new(
                             ErrorKind::RecursionLimit, 
                             "max recursion depth reached with this expression", 
-                            start_loc, 
+                            location, 
                             width
                         ))
                     } else {
-                        Ok(Command::Print { expr })
+                        Ok(Command::Print { expr, location })
                     }
                 }
             }
@@ -244,15 +244,21 @@ impl Context {
             Command::Quit => {
                 self.quit = true
             }
-            Command::DefineExpr { name, symbols, mut def } => {
+            Command::DefineExpr { name, symbols, mut definition } => {
                 for symbol in symbols.iter().rev() {
-                    def.expr.remove_symbol(symbol);
+                    definition.expr.remove_symbol(symbol);
                 }
-                self.bindings.insert(name.text, def);
+                self.bindings.insert(name.text, definition);
             }
-            Command::Print { expr } => {
-                // TODO: Change output depending on whether we're in REPL or interpreting.
-                println!("{} {}", OUTPUT_PROMPT, expr)
+            Command::Print { expr, location } => {
+                match location {
+                    Location::File { path, row, .. } => {
+                        println!("{}:{} => {}", path.to_str().unwrap(), row, expr)
+                    }
+                    Location::Repl { .. } => {
+                        println!(" => {}", expr)
+                    }
+                }
             }
         }
     }   
