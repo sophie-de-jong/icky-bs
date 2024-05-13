@@ -110,10 +110,9 @@ impl Expr {
             TokenKind::Combinator, 
             TokenKind::OpenParen, 
             TokenKind::CloseParen,
-            TokenKind::InvalidChar
         ];
-        let start_index = lexer.current_index();
         let token = lexer.expect_tokens(&kinds)?;
+        let start_index = lexer.current_index();
 
         match token.kind {
             TokenKind::Symbol => {
@@ -210,6 +209,55 @@ impl Expr {
                 sym => {
                     for expr in term.iter_mut() {
                         expr.evaluate(context, depth);
+                    }
+                    term.push(sym);
+                }
+            }
+        }
+    }
+
+    // Like evaluate, except it attempts to evluate an expression even if it doesn't have enough
+    // arguments.
+    pub fn force_evaluate(&mut self, context: &mut Context, depth: &mut usize) {
+        if *depth == 0 {
+            return
+        }
+        *depth -= 1;
+
+        if let Expr::Variable(name) = self {
+            *self = context.get_variable(name);
+            self.force_evaluate(context, depth)
+        } else if let Expr::Term(term) = self {
+            // Handles the case where brackets are enclosed around
+            // a single term, i.e. f (x) -> f x
+            if term.len() == 1 {
+                *self = term.pop().unwrap();
+                return self.force_evaluate(context, depth);
+            }
+
+            match term.pop().expect("expression must contain at least one element") {
+                // If a term starts with another term, we can safely extract it
+                // without losing application order of combinators.
+                // (i.e. f ((K I) x y) -> f (K I x y))
+                Expr::Term(mut subterm) => {
+                    term.append(&mut subterm);
+                    self.force_evaluate(context, depth);
+                }
+                Expr::Variable(name) => {
+                    let expr = context.get_variable(&name);
+                    term.push(expr);
+                    self.force_evaluate(context, depth);
+                }
+                Expr::Combinator(combinator) if combinator.required_args() <= term.len() => {
+                    combinator.apply_rule(term);
+                    self.force_evaluate(context, depth);
+                }
+                // A symbol or combinator that doesn't have enough arguments can safely simplify
+                // its arguments individually. 
+                // (i.e. S (I x) y -> S x y)
+                sym => {
+                    for expr in term.iter_mut() {
+                        expr.force_evaluate(context, depth);
                     }
                     term.push(sym);
                 }

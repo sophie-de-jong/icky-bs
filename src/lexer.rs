@@ -20,6 +20,7 @@ pub enum TokenKind {
     Symbol,
     String,
 
+    Force,
     Link,
     Repr,
     Source,
@@ -45,6 +46,7 @@ impl TokenKind {
             TokenKind::Link => "/link",
             TokenKind::Repr => "/repr",
             TokenKind::Source => "/source",
+            TokenKind::Force => "/force",
             TokenKind::Debug => "/debug",
             TokenKind::Quit => "/quit",
             TokenKind::OpenParen => "open paren",
@@ -59,6 +61,7 @@ impl TokenKind {
 
     fn from_command(text: &str) -> Option<TokenKind> {
         match text {
+            "/force"  => Some(TokenKind::Force),
             "/link"   => Some(TokenKind::Link),
             "/repr"   => Some(TokenKind::Repr),
             "/source" => Some(TokenKind::Source),

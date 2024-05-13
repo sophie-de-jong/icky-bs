@@ -25,7 +25,7 @@ fn start_repl(mut context: Context) {
         match command {
             Ok(command) => context.process_command(command),
             Err(err) => {
-                eprintln!("{:>width$}{}", " ", err, width = FILE_EXTENSION.len() + 2);
+                eprintln!("{:>width$}{}", "", err, width = FILE_EXTENSION.len() + 2);
             }
         }
 

@@ -2,11 +2,10 @@ use crate::error::*;
 use crate::expr::*;
 use crate::lexer::*;
 use std::collections::HashMap;
-use std::fs;
 use std::path::PathBuf;
 
-const MAX_RECURSION_DEPTH: usize = 1024;
 pub const FILE_EXTENSION: &str = "skibc";
+const MAX_RECURSION_DEPTH: usize = 1024;
 
 #[derive(Debug)]
 pub struct Definition {
@@ -82,6 +81,36 @@ impl Command {
             TokenKind::Eol => {
                 Ok(Command::Nothing)
             }
+            TokenKind::Force => {
+                // Parse expression.
+                let location = lexer.advance().unwrap().location;
+                if lexer.current().map_or(true, |token| token.kind == TokenKind::Eol) {
+                    let kinds = [
+                        TokenKind::Symbol, 
+                        TokenKind::Combinator, 
+                        TokenKind::OpenParen, 
+                        TokenKind::CloseParen,
+                        ];
+                        lexer.expect_tokens(&kinds)?;
+                    }
+                    
+                let start_index = lexer.current_index();
+                let mut expr = Expr::parse(lexer, context, None)?;
+                let mut depth = MAX_RECURSION_DEPTH;
+                expr.force_evaluate(context, &mut depth);
+
+                if depth == 0 {
+                    let width = lexer.current_index() - start_index - 1;
+                    Err(Error::new(
+                        ErrorKind::RecursionLimit, 
+                        "max recursion depth reached with this expression", 
+                        location, 
+                        width
+                    ))
+                } else {
+                    Ok(Command::Print { expr, location })
+                }
+            }
             TokenKind::Symbol | TokenKind::Combinator | TokenKind::OpenParen | TokenKind::CloseParen => {
                 let current_line = lexer.current_line();
 
@@ -141,6 +170,7 @@ impl Command {
                 TokenKind::Combinator,
                 TokenKind::OpenParen,
                 TokenKind::CloseParen,
+                TokenKind::Force,
                 TokenKind::Link,
                 TokenKind::Repr,
                 TokenKind::Source,
@@ -194,7 +224,7 @@ impl Context {
     pub fn process_file(&mut self, file_path: PathBuf) {
         let saved_file = self.current_file.clone();
         self.current_file = Some(file_path.clone());
-        let source = fs::read_to_string(file_path.clone()).unwrap();
+        let source = std::fs::read_to_string(file_path.clone()).unwrap();
 
         let mut lexer = Lexer::new(source.chars().collect(), Some(file_path));
         while !lexer.is_exhausted() && !self.quit {
