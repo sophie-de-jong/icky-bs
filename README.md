@@ -69,8 +69,11 @@ To make the language usable, there are a few commands you can use:
 - `/quit` quits the current session
 - `/force <expr>` forces an expression to evaluate, even if arguments are missing
 
+## Project Name
+The reason the project is named ICKY-BS is quite simple, the name consists of each built-in combinator that the language implements and writing any sort of useful code feels very icky and bs.
+
 ## References
-- https://www.youtube.com/watch?v=gnrSedVucXs
+- https://www.youtube.com/watch?v=gnrSedVucXs (original inspiration)
 - https://en.wikipedia.org/wiki/SKI_combinator_calculus
 - https://en.wikipedia.org/wiki/Combinatory_logic
 - https://en.wikipedia.org/wiki/Church_encoding
