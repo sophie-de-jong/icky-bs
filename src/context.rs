@@ -97,7 +97,7 @@ impl Command {
                 let start_index = lexer.current_index();
                 let mut expr = Expr::parse(lexer, context, None)?;
                 let mut depth = MAX_RECURSION_DEPTH;
-                expr.force_evaluate(context, &mut depth);
+                expr.evaluate(context, &mut depth, true);
 
                 if depth == 0 {
                     let width = lexer.current_index() - start_index - 1;
@@ -150,7 +150,7 @@ impl Command {
                     let start_index = lexer.current_index();
                     let mut expr = Expr::parse(lexer, context, None)?;
                     let mut depth = MAX_RECURSION_DEPTH;
-                    expr.evaluate(context, &mut depth);
+                    expr.evaluate(context, &mut depth, false);
 
                     if depth == 0 {
                         let width = lexer.current_index() - start_index - 1;
