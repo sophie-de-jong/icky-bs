@@ -1,6 +1,6 @@
 use std::fmt;
 use std::rc::Rc;
-use crate::context::Context;
+use crate::engine::Context;
 use crate::lexer::{Lexer, TokenKind};
 use crate::error::{Error, ErrorKind, Result};
 
@@ -86,14 +86,14 @@ pub enum Expr {
 }
 
 impl Expr {
-    pub fn parse(lexer: &mut Lexer, context: &mut Context, allowed_symbols: Option<&[String]>) -> Result<Expr> {
+    pub fn parse(lexer: &mut Lexer, context: &mut Context, allowed_symbols: Option<&[String]>, combinator_name: Option<&str>) -> Result<Expr> {
         let mut term = Vec::new();
 
         while let Some(token) = lexer.current() {
             if let TokenKind::Eol = token.kind {
                 break
             }
-            term.push(Expr::parse_term(lexer, context, allowed_symbols)?);
+            term.push(Expr::parse_term(lexer, context, allowed_symbols, combinator_name)?);
         }
 
         if term.len() == 1 {
@@ -104,7 +104,7 @@ impl Expr {
         }
     }
 
-    fn parse_term(lexer: &mut Lexer, context: &mut Context, allowed_symbols: Option<&[String]>) -> Result<Expr> {
+    fn parse_term(lexer: &mut Lexer, context: &mut Context, allowed_symbols: Option<&[String]>, combinator_name: Option<&str>) -> Result<Expr> {
         let kinds = [
             TokenKind::Symbol, 
             TokenKind::Combinator, 
@@ -136,6 +136,8 @@ impl Expr {
                     "Y" => Ok(Expr::Combinator(Combinator::Y)),
                     name => if context.has_variable(name) {
                         Ok(Expr::Variable(Rc::from(name)))
+                    } else if combinator_name == Some(name) {
+                        Ok(Expr::Symbol(Rc::from("#"))) // Add a placeholder symbol to signify recursive definition.
                     } else {
                         Err(Error::from_token(
                             ErrorKind::NotFound,
@@ -153,7 +155,7 @@ impl Expr {
                         lexer.advance();
                         break
                     }
-                    term.push(Expr::parse_term(lexer, context, allowed_symbols)?)
+                    term.push(Expr::parse_term(lexer, context, allowed_symbols, combinator_name)?)
                 }
 
                 if term.is_empty() {
@@ -242,12 +244,20 @@ impl Expr {
                     return self.remove_symbol(symbol)
                 }
 
-                let mut expr = Expr::Term(term.drain(1..).collect());                
+                let mut expr = if term.len() == 2 {
+                    term.pop().unwrap()
+                } else {
+                    Expr::Term(term.drain(1..).collect())
+                };       
                 let first = term.first_mut().unwrap();
 
                 if *first == Expr::Symbol(Rc::from(symbol)) && !expr.contains_symbol(symbol) {
                     term.pop();
-                    term.push(expr);
+                    if term.is_empty() {
+                        *self = expr;
+                    } else {
+                        term.push(expr);
+                    }
                 } else if !expr.contains_symbol(symbol) && first.contains_symbol(symbol) {
                     first.remove_symbol(symbol);
                     term.push(expr);
@@ -266,7 +276,7 @@ impl Expr {
         }
     }
 
-    fn contains_symbol(&self, symbol: &str) -> bool {
+    pub fn contains_symbol(&self, symbol: &str) -> bool {
         match self {
             Expr::Combinator(_) | Expr::Variable(_) => false,
             Expr::Symbol(symbol_2) => symbol == symbol_2.as_ref(),

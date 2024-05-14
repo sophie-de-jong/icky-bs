@@ -1,4 +1,4 @@
-mod context;
+mod engine;
 mod expr;
 mod lexer;
 mod error;
@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::env::Args;
 use std::io::{self, Write};
 use crate::lexer::Lexer;
-use crate::context::*;
+use crate::engine::*;
 
 fn start_repl(mut context: Context) {
     let mut line = String::new();

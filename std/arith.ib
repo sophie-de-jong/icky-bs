@@ -1,0 +1,7 @@
+/link "std/number.ib"
+
+APPLY n f x := (IS_ZERO n) x (f (APPLY (PRED n) f x))
+
+ADD m n := APPLY n SUCC m
+SUB m n := APPLY n PRED m
+

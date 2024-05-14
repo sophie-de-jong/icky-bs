@@ -132,6 +132,20 @@ impl Lexer {
         }
     }
 
+    pub fn location_bol(&self) -> Location {
+        match &self.file_path {
+            Some(file_path) => Location::File {
+                path: file_path.clone(),
+                line: self.current_line(),
+                row: self.line,
+                col: 0
+            },
+            None => Location::Repl {
+                cursor: 0 
+            }
+        }
+    }
+
     pub fn current(&self) -> Option<&Token> {
         self.current.as_ref()
     }

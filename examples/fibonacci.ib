@@ -1,0 +1,17 @@
+/link "std/arith.ib"
+
+NEXT_FIB_PAIR pair := PAIR (SECOND pair) (ADD (FIRST pair) (SECOND pair))
+
+// Should be PAIR 1 1
+NEXT_FIB_PAIR (PAIR 0 1)
+// Should be PAIR 1 2
+NEXT_FIB_PAIR (NEXT_FIB_PAIR (PAIR 0 1))
+// Should be PAIR 2 3
+
+// Main fibonacci definition
+FIB n := FIRST (APPLY n NEXT_FIB_PAIR (PAIR 0 1))
+
+// Should be 5 (we get a recursion limit instead)
+FIB 3
+// Should be 8
+FIB 6

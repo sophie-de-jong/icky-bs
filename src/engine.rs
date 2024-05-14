@@ -82,88 +82,51 @@ impl Command {
                 Ok(Command::Nothing)
             }
             TokenKind::Force => {
-                // Parse expression.
-                let location = lexer.advance().unwrap().location;
+                lexer.advance();
                 if lexer.current().map_or(true, |token| token.kind == TokenKind::Eol) {
                     let kinds = [
                         TokenKind::Symbol, 
                         TokenKind::Combinator, 
                         TokenKind::OpenParen, 
                         TokenKind::CloseParen,
-                        ];
-                        lexer.expect_tokens(&kinds)?;
-                    }
-                    
-                let start_index = lexer.current_index();
-                let mut expr = Expr::parse(lexer, context, None)?;
-                let mut depth = MAX_RECURSION_DEPTH;
-                expr.evaluate(context, &mut depth, true);
-
-                if depth == 0 {
-                    let width = lexer.current_index() - start_index - 1;
-                    Err(Error::new(
-                        ErrorKind::RecursionLimit, 
-                        "max recursion depth reached with this expression", 
-                        location, 
-                        width
-                    ))
-                } else {
-                    Ok(Command::Print { expr, location })
-                }
+                    ];
+                    lexer.expect_tokens(&kinds)?;
+                }   
+                Command::parse_and_eval_expr(lexer, context, true)
             }
-            TokenKind::Symbol | TokenKind::Combinator | TokenKind::OpenParen | TokenKind::CloseParen => {
-                let current_line = lexer.current_line();
-
-                if current_line.contains(":=") {
-                    let mut symbols = Vec::new();
-                    let mut args = String::new();
-            
-                    // Parse name.
-                    let name = lexer.expect_token(TokenKind::Combinator)?;
-            
-                    // Parse symbols.
-                    loop {
-                        let token = lexer.expect_tokens(&[TokenKind::ColonEquals, TokenKind::Symbol])?;
-                        if token.kind == TokenKind::ColonEquals {
-                            break
-                        } else {
-                            args.push(' ');
-                            args.push_str(&token.text);
-                            symbols.push(token.text);
-                        }
-                    }
-            
-                    // Parse expression.
-                    let expr = Expr::parse(lexer, context, Some(&symbols))?;
-                    let repr = format!("{}{} -> {}", &name.text, args, expr);
-                    let definition = Definition {
-                        source: context.current_file.clone(),
-                        args: symbols.len(),
-                        repr,
-                        expr
-                    };
-            
-                    Ok(Command::DefineExpr { name, symbols, definition })
-                } else {
-                    // Parse expression.
-                    let location = token.location.clone();
-                    let start_index = lexer.current_index();
-                    let mut expr = Expr::parse(lexer, context, None)?;
-                    let mut depth = MAX_RECURSION_DEPTH;
-                    expr.evaluate(context, &mut depth, false);
-
-                    if depth == 0 {
-                        let width = lexer.current_index() - start_index - 1;
-                        Err(Error::new(
-                            ErrorKind::RecursionLimit, 
-                            "max recursion depth reached with this expression", 
-                            location, 
-                            width
-                        ))
+            TokenKind::Symbol    | TokenKind::Combinator | 
+            TokenKind::OpenParen | TokenKind::CloseParen => if lexer.current_line().contains(":=") {
+                let mut symbols = Vec::new();
+                let mut args = String::new();
+        
+                // Parse name.
+                let name = lexer.expect_token(TokenKind::Combinator)?;
+        
+                // Parse symbols.
+                loop {
+                    let token = lexer.expect_tokens(&[TokenKind::ColonEquals, TokenKind::Symbol])?;
+                    if token.kind == TokenKind::ColonEquals {
+                        break
                     } else {
-                        Ok(Command::Print { expr, location })
+                        args.push(' ');
+                        args.push_str(&token.text);
+                        symbols.push(token.text);
                     }
                 }
+        
+                // Parse expression.
+                let expr = Expr::parse(lexer, context, Some(&symbols), Some(&name.text))?;
+                let repr = format!("{}{} -> {}", &name.text, args, expr.to_string().replace('#', &name.text));
+                let definition = Definition {
+                    source: context.current_file.clone(),
+                    args: symbols.len(),
+                    repr,
+                    expr
+                };
+        
+                Ok(Command::DefineExpr { name, symbols, definition })
+            } else {
+                Command::parse_and_eval_expr(lexer, context, false)
             }
             _ => lexer.expect_tokens(&[
                 TokenKind::Symbol,
@@ -182,6 +145,26 @@ impl Command {
 
         lexer.expect_end()?;
         result
+    }
+
+    fn parse_and_eval_expr(lexer: &mut Lexer, context: &mut Context, force_eval: bool) -> Result<Command> {
+        let mut depth = MAX_RECURSION_DEPTH;
+        let width = lexer.current_line().len() - 1;
+        let location = lexer.location_bol();
+
+        let mut expr = Expr::parse(lexer, context, None, None)?;
+        expr.evaluate(context, &mut depth, force_eval);
+
+        if depth == 0 {
+            Err(Error::new(
+                ErrorKind::RecursionLimit, 
+                "max recursion depth reached with this expression", 
+                location,
+                width,
+            ))
+        } else {
+            Ok(Command::Print { expr, location })
+        }
     }
 }
 
@@ -281,6 +264,11 @@ impl Context {
             Command::DefineExpr { name, symbols, mut definition } => {
                 for symbol in symbols.iter().rev() {
                     definition.expr.remove_symbol(symbol);
+                }
+
+                if definition.expr.contains_symbol("#") {
+                    definition.expr.remove_symbol("#");
+                    definition.expr = Expr::Term(vec![definition.expr, Expr::Combinator(Combinator::Y)])
                 }
                 self.bindings.insert(name.text, definition);
             }
